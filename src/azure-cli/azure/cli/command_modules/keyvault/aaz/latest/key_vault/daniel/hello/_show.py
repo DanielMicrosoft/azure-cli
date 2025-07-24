@@ -19,9 +19,9 @@ class Show(AAZCommand):
     """
 
     _aaz_info = {
-        "version": "2025-07-24",
+        "version": "2025-04-01",
         "resources": [
-            ["mgmt-plane", "/subscriptions/{}/daniel/hello", "2025-07-24"],
+            ["mgmt-plane", "/subscriptions/{}/daniel/hello", "2025-04-01"],
         ]
     }
 
@@ -89,6 +89,16 @@ class Show(AAZCommand):
             parameters = {
                 **self.serialize_url_param(
                     "subscriptionId", self.ctx.subscription_id,
+                    required=True,
+                ),
+            }
+            return parameters
+
+        @property
+        def query_parameters(self):
+            parameters = {
+                **self.serialize_query_param(
+                    "api-version", "2025-04-01",
                     required=True,
                 ),
             }
