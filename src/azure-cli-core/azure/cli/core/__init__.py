@@ -436,9 +436,19 @@ class MainCommandsLoader(CLICommandsLoader):
                 index_modules, index_extensions = index_result
                 # Always load modules and extensions, because some of them (like those in
                 # ALWAYS_LOADED_EXTENSIONS) don't expose a command, but hooks into handlers in CLI core
+                import time
+                import sys
+                start_time = time.time()
+                print(f"[PERF] Loading modules from index: {index_modules}", file=sys.stderr, flush=True)
                 _update_command_table_from_modules(args, index_modules)
+                elapsed_modules = time.time() - start_time
+                print(f"[PERF] Loaded modules in {elapsed_modules:.3f} seconds", file=sys.stderr, flush=True)
+                
                 # The index won't contain suppressed extensions
+                start_time = time.time()
                 _update_command_table_from_extensions([], index_extensions)
+                elapsed_extensions = time.time() - start_time
+                print(f"[PERF] Loaded extensions in {elapsed_extensions:.3f} seconds", file=sys.stderr, flush=True)
 
                 logger.debug("Loaded %d groups, %d commands.", len(self.command_group_table), len(self.command_table))
                 from azure.cli.core.util import roughly_parse_command

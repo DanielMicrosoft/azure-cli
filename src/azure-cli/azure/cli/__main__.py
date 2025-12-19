@@ -9,6 +9,11 @@ import timeit
 start_time = timeit.default_timer()
 
 import sys
+import os
+
+# Track completion performance
+if os.environ.get('_ARGCOMPLETE'):
+    print(f"[PERF] az CLI entry point at {start_time}", file=sys.stderr, flush=True)
 
 from azure.cli.core import telemetry
 from azure.cli.core import get_default_cli
@@ -29,6 +34,10 @@ def cli_main(cli, args):
 
 az_cli = get_default_cli()
 
+if os.environ.get('_ARGCOMPLETE'):
+    elapsed = timeit.default_timer() - start_time
+    print(f"[PERF] CLI initialized in {elapsed:.3f} seconds", file=sys.stderr, flush=True)
+
 telemetry.set_application(az_cli, ARGCOMPLETE_ENV_NAME)
 
 # Log the init finish time
@@ -38,6 +47,9 @@ exit_code = None
 try:
     telemetry.start()
 
+    if os.environ.get('_ARGCOMPLETE'):
+        print(f"[PERF] Calling cli_main() at {timeit.default_timer():.3f}", file=sys.stderr, flush=True)
+    
     exit_code = cli_main(az_cli, sys.argv[1:])
 
     if exit_code == 0:

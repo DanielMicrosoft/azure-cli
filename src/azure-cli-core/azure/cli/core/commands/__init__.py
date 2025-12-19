@@ -506,6 +506,13 @@ class AzCliCommandInvoker(CommandInvoker):
 
     # pylint: disable=too-many-statements,too-many-locals,too-many-branches
     def execute(self, args):
+        import time
+        import sys
+        import os
+        _start_time = time.time()
+        if os.environ.get('_ARGCOMPLETE'):
+            print(f"[PERF] Starting completion at {_start_time}", file=sys.stderr, flush=True)
+        
         from knack.events import (EVENT_INVOKER_PRE_CMD_TBL_CREATE, EVENT_INVOKER_POST_CMD_TBL_CREATE,
                                   EVENT_INVOKER_CMD_TBL_LOADED, EVENT_INVOKER_PRE_PARSE_ARGS,
                                   EVENT_INVOKER_POST_PARSE_ARGS,
@@ -588,6 +595,9 @@ class AzCliCommandInvoker(CommandInvoker):
         if args[0].lower() == 'help':
             args[0] = '--help'
 
+        if os.environ.get('_ARGCOMPLETE'):
+            elapsed = time.time() - _start_time
+            print(f"[PERF] About to enable autocomplete. Elapsed so far: {elapsed:.3f} seconds", file=sys.stderr, flush=True)
         self.parser.enable_autocomplete()
 
         self.cli_ctx.raise_event(EVENT_INVOKER_PRE_PARSE_ARGS, args=args)

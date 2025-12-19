@@ -13,7 +13,8 @@
 from azure.cli.core import AzCommandsLoader
 from azure.cli.core.profiles import ResourceType
 
-import azure.cli.command_modules.vm._help  # pylint: disable=unused-import
+# Don't import help during tab completion - it's expensive and not needed
+# import azure.cli.command_modules.vm._help  # pylint: disable=unused-import
 
 
 class ComputeCommandsLoader(AzCommandsLoader):

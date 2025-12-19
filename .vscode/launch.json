@@ -54,7 +54,8 @@
                 "_ARGCOMPLETE_SUPPRESS_SPACE": "0",
                 "_ARGCOMPLETE_IFS": "\n",
                 "_ARGCOMPLETE_SHELL": "powershell",
-                "ARGCOMPLETE_USE_TEMPFILES": "1"
+                "ARGCOMPLETE_USE_TEMPFILES": "1",
+                "_ARGCOMPLETE_STDOUT_FILENAME": "C:\\temp\\az_debug_completion.txt"
             },
             "justMyCode": false
         }
