@@ -440,6 +440,25 @@ class MainCommandsLoader(CLICommandsLoader):
             print(f"[PERF] index_result: {index_result}", file=sys.stderr, flush=True)
             if index_result:
                 index_modules, index_extensions = index_result
+                
+                # Special case for top-level completion - create minimal command groups
+                if index_modules == '__top_level_completion__':
+                    import time
+                    from azure.cli.core.commands import AzCliCommand
+                    start_time = time.time()
+                    print(f"[PERF] Top-level completion mode: creating {len(index_extensions)} command stubs", file=sys.stderr, flush=True)
+                    # index_extensions contains the command names, not extensions
+                    for cmd_name in index_extensions:
+                        # Create a minimal command entry for tab completion
+                        # This allows argparse to see the command without loading the module
+                        if cmd_name not in self.command_table:
+                            self.command_table[cmd_name] = AzCliCommand(
+                                self, cmd_name, lambda: None
+                            )
+                    elapsed = time.time() - start_time
+                    print(f"[PERF] Created command stubs in {elapsed:.3f} seconds", file=sys.stderr, flush=True)
+                    return self.command_table
+                
                 # Always load modules and extensions, because some of them (like those in
                 # ALWAYS_LOADED_EXTENSIONS) don't expose a command, but hooks into handlers in CLI core
                 import time
@@ -621,8 +640,14 @@ class CommandIndex:
             return None
 
         # Make sure the top-level command is provided, like `az version`.
-        # Skip command index for `az` or `az --help`.
+        # For top-level completion (az [tab]), use a special marker to skip module loading
         if not args or args[0].startswith('-'):
+            if not args and self.cli_ctx.data.get('completer_active'):
+                # Return a special marker so we know to skip module loading for top-level completion
+                index = self.INDEX[self._COMMAND_INDEX]
+                all_commands = list(index.keys())
+                logger.debug("Top-level completion: %d commands available", len(all_commands))
+                return '__top_level_completion__', all_commands  # special marker, command list
             return None
 
         # Get the top-level command, like `network` in `network vnet create -h`
