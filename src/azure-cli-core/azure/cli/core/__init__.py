@@ -424,12 +424,16 @@ class MainCommandsLoader(CLICommandsLoader):
         self.command_table.clear()
 
         # Import announced breaking changes in azure.cli.core._breaking_change.py
+        import time
+        t1 = time.time()
         import_core_breaking_changes()
+        print(f"[PERF] Breaking changes import: {time.time()-t1:.3f}s", file=sys.stderr, flush=True)
 
         command_index = None
         # Set fallback=False to turn off command index in case of regression
+        t1 = time.time()
         use_command_index = self.cli_ctx.config.getboolean('core', 'use_command_index', fallback=True)
-        print(f"[PERF] use_command_index: {use_command_index}, args: {args}", file=sys.stderr, flush=True)
+        print(f"[PERF] use_command_index: {use_command_index}, args: {args}, lookup time: {time.time()-t1:.3f}s", file=sys.stderr, flush=True)
         if use_command_index:
             command_index = CommandIndex(self.cli_ctx)
             index_result = command_index.get(args)
@@ -497,16 +501,25 @@ class MainCommandsLoader(CLICommandsLoader):
 
         # No module found from the index. Load all command modules and extensions
         logger.debug("Loading all modules and extensions")
+        t1 = time.time()
+        print(f"[PERF] Loading ALL modules (no index)", file=sys.stderr, flush=True)
         _update_command_table_from_modules(args)
+        elapsed_all_modules = time.time() - t1
+        print(f"[PERF] Loaded ALL modules in {elapsed_all_modules:.3f} seconds", file=sys.stderr, flush=True)
 
+        t1 = time.time()
         ext_suppressions = _get_extension_suppressions(self.loaders)
         # We always load extensions even if the appropriate module has been loaded
         # as an extension could override the commands already loaded.
         _update_command_table_from_extensions(ext_suppressions)
+        elapsed_all_extensions = time.time() - t1
+        print(f"[PERF] Loaded ALL extensions in {elapsed_all_extensions:.3f} seconds", file=sys.stderr, flush=True)
         logger.debug("Loaded %d groups, %d commands.", len(self.command_group_table), len(self.command_table))
 
         if use_command_index:
+            t1 = time.time()
             command_index.update(self.command_table)
+            print(f"[PERF] Command index update: {time.time()-t1:.3f}s", file=sys.stderr, flush=True)
 
         return self.command_table
 
