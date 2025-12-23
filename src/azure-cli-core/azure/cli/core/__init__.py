@@ -429,15 +429,16 @@ class MainCommandsLoader(CLICommandsLoader):
         command_index = None
         # Set fallback=False to turn off command index in case of regression
         use_command_index = self.cli_ctx.config.getboolean('core', 'use_command_index', fallback=True)
+        print(f"[PERF] use_command_index: {use_command_index}, args: {args}", file=sys.stderr, flush=True)
         if use_command_index:
             command_index = CommandIndex(self.cli_ctx)
             index_result = command_index.get(args)
+            print(f"[PERF] index_result: {index_result}", file=sys.stderr, flush=True)
             if index_result:
                 index_modules, index_extensions = index_result
                 # Always load modules and extensions, because some of them (like those in
                 # ALWAYS_LOADED_EXTENSIONS) don't expose a command, but hooks into handlers in CLI core
                 import time
-                import sys
                 start_time = time.time()
                 print(f"[PERF] Loading modules from index: {index_modules}", file=sys.stderr, flush=True)
                 _update_command_table_from_modules(args, index_modules)
