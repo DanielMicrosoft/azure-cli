@@ -11,8 +11,9 @@ start_time = timeit.default_timer()
 import sys
 import os
 
-# Track completion performance
+# Track completion performance - store start time for argcomplete to use
 if os.environ.get('_ARGCOMPLETE'):
+    sys._cli_start_time = start_time
     print(f"[PERF] az CLI entry point at {start_time}", file=sys.stderr, flush=True)
 
 from azure.cli.core import telemetry
@@ -67,6 +68,13 @@ except SystemExit as ex:  # some code directly call sys.exit, this is to make su
 finally:
     # Log the invoke finish time
     invoke_finish_time = timeit.default_timer()
+    
+    if os.environ.get('_ARGCOMPLETE'):
+        total_time = invoke_finish_time - start_time
+        print(f"[PERF] ============================================", file=sys.stderr, flush=True)
+        print(f"[PERF] TOTAL TAB COMPLETION TIME: {total_time:.3f} seconds", file=sys.stderr, flush=True)
+        print(f"[PERF] ============================================", file=sys.stderr, flush=True)
+    
     logger.info("Command ran in %.3f seconds (init: %.3f, invoke: %.3f)",
                 invoke_finish_time - start_time,
                 init_finish_time - start_time,
