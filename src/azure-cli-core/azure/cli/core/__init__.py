@@ -612,8 +612,9 @@ class CommandIndex:
             return None
 
         # Make sure the top-level command is provided, like `az version`.
-        # For top-level completion (az [tab]), use a special marker to skip module loading
+        # Skip command index for `az` or `az --help`.
         if not args or args[0].startswith('-'):
+            # For top-level completion (az [tab])
             if not args and self.cli_ctx.data.get('completer_active'):
                 # Return a special marker so we know to skip module loading for top-level completion
                 index = self.INDEX[self._COMMAND_INDEX]
