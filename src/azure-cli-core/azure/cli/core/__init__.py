@@ -424,29 +424,20 @@ class MainCommandsLoader(CLICommandsLoader):
         self.command_table.clear()
 
         # Import announced breaking changes in azure.cli.core._breaking_change.py
-        import time
-        t1 = time.time()
         import_core_breaking_changes()
-        print(f"[PERF] Breaking changes import: {time.time()-t1:.3f}s", file=sys.stderr, flush=True)
 
         command_index = None
         # Set fallback=False to turn off command index in case of regression
-        t1 = time.time()
         use_command_index = self.cli_ctx.config.getboolean('core', 'use_command_index', fallback=True)
-        print(f"[PERF] use_command_index: {use_command_index}, args: {args}, lookup time: {time.time()-t1:.3f}s", file=sys.stderr, flush=True)
         if use_command_index:
             command_index = CommandIndex(self.cli_ctx)
             index_result = command_index.get(args)
-            print(f"[PERF] index_result: {index_result}", file=sys.stderr, flush=True)
             if index_result:
                 index_modules, index_extensions = index_result
                 
                 # Special case for top-level completion - create minimal command groups
                 if index_modules == '__top_level_completion__':
-                    import time
                     from azure.cli.core.commands import AzCliCommand
-                    start_time = time.time()
-                    print(f"[PERF] Top-level completion mode: creating {len(index_extensions)} command stubs", file=sys.stderr, flush=True)
                     # index_extensions contains the command names, not extensions
                     for cmd_name in index_extensions:
                         # Create a minimal command entry for tab completion
@@ -455,24 +446,14 @@ class MainCommandsLoader(CLICommandsLoader):
                             self.command_table[cmd_name] = AzCliCommand(
                                 self, cmd_name, lambda: None
                             )
-                    elapsed = time.time() - start_time
-                    print(f"[PERF] Created command stubs in {elapsed:.3f} seconds", file=sys.stderr, flush=True)
                     return self.command_table
                 
                 # Always load modules and extensions, because some of them (like those in
                 # ALWAYS_LOADED_EXTENSIONS) don't expose a command, but hooks into handlers in CLI core
-                import time
-                start_time = time.time()
-                print(f"[PERF] Loading modules from index: {index_modules}", file=sys.stderr, flush=True)
                 _update_command_table_from_modules(args, index_modules)
-                elapsed_modules = time.time() - start_time
-                print(f"[PERF] Loaded modules in {elapsed_modules:.3f} seconds", file=sys.stderr, flush=True)
                 
                 # The index won't contain suppressed extensions
-                start_time = time.time()
                 _update_command_table_from_extensions([], index_extensions)
-                elapsed_extensions = time.time() - start_time
-                print(f"[PERF] Loaded extensions in {elapsed_extensions:.3f} seconds", file=sys.stderr, flush=True)
 
                 logger.debug("Loaded %d groups, %d commands.", len(self.command_group_table), len(self.command_table))
                 from azure.cli.core.util import roughly_parse_command
@@ -520,25 +501,16 @@ class MainCommandsLoader(CLICommandsLoader):
 
         # No module found from the index. Load all command modules and extensions
         logger.debug("Loading all modules and extensions")
-        t1 = time.time()
-        print(f"[PERF] Loading ALL modules (no index)", file=sys.stderr, flush=True)
         _update_command_table_from_modules(args)
-        elapsed_all_modules = time.time() - t1
-        print(f"[PERF] Loaded ALL modules in {elapsed_all_modules:.3f} seconds", file=sys.stderr, flush=True)
 
-        t1 = time.time()
         ext_suppressions = _get_extension_suppressions(self.loaders)
         # We always load extensions even if the appropriate module has been loaded
         # as an extension could override the commands already loaded.
         _update_command_table_from_extensions(ext_suppressions)
-        elapsed_all_extensions = time.time() - t1
-        print(f"[PERF] Loaded ALL extensions in {elapsed_all_extensions:.3f} seconds", file=sys.stderr, flush=True)
         logger.debug("Loaded %d groups, %d commands.", len(self.command_group_table), len(self.command_table))
 
         if use_command_index:
-            t1 = time.time()
             command_index.update(self.command_table)
-            print(f"[PERF] Command index update: {time.time()-t1:.3f}s", file=sys.stderr, flush=True)
 
         return self.command_table
 
