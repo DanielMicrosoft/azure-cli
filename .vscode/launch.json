@@ -49,8 +49,8 @@
             "cwd": "${workspaceFolder}",
             "env": {
                 "_ARGCOMPLETE": "1",
-                "COMP_LINE": "az ",
-                "COMP_POINT": "3",
+                "COMP_LINE": "az vm create --",
+                "COMP_POINT": "18",
                 "_ARGCOMPLETE_SUPPRESS_SPACE": "0",
                 "_ARGCOMPLETE_IFS": "\n",
                 "_ARGCOMPLETE_SHELL": "powershell",

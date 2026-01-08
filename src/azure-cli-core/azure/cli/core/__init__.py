@@ -434,7 +434,6 @@ class MainCommandsLoader(CLICommandsLoader):
             index_result = command_index.get(args)
             if index_result:
                 index_modules, index_extensions = index_result
-                
                 # Special case for top-level completion - create minimal command groups
                 if index_modules == '__top_level_completion__':
                     from azure.cli.core.commands import AzCliCommand
@@ -447,11 +446,11 @@ class MainCommandsLoader(CLICommandsLoader):
                                 self, cmd_name, lambda: None
                             )
                     return self.command_table
-                
+
                 # Always load modules and extensions, because some of them (like those in
                 # ALWAYS_LOADED_EXTENSIONS) don't expose a command, but hooks into handlers in CLI core
                 _update_command_table_from_modules(args, index_modules)
-                
+
                 # The index won't contain suppressed extensions
                 _update_command_table_from_extensions([], index_extensions)
 
