@@ -218,10 +218,15 @@ class MainCommandsLoader(CLICommandsLoader):
         :param command_names: List of command names to create stubs for
         """
         from azure.cli.core.commands import AzCliCommand
+        
+        def _stub_handler(*args, **kwargs):
+            """Stub command handler used only for argument completion."""
+            return None
+        
         for cmd_name in command_names:
             if cmd_name not in self.command_table:
-                # Create stub with no-op handler - never invoked during completion
-                self.command_table[cmd_name] = AzCliCommand(self, cmd_name, lambda: None)
+                # Stub commands only need names for argcomplete parser construction.
+                self.command_table[cmd_name] = AzCliCommand(self, cmd_name, _stub_handler)
 
     def _update_command_definitions(self):
         for cmd_name in self.command_table:
@@ -452,6 +457,7 @@ class MainCommandsLoader(CLICommandsLoader):
 
                 if index_modules == TOP_LEVEL_COMPLETION_MARKER:
                     self._create_stub_commands_for_completion(index_extensions)
+                    _update_command_table_from_extensions([], ALWAYS_LOADED_EXTENSIONS)
                     return self.command_table
 
                 # Always load modules and extensions, because some of them (like those in
@@ -604,10 +610,14 @@ class CommandIndex:
         """Get all command names for top-level completion optimization.
         
         Returns marker and command list for creating stub commands without module loading.
+        Returns None if index is empty, triggering fallback to full module loading.
         
-        :return: tuple of (TOP_LEVEL_COMPLETION_MARKER, list of command names)
+        :return: tuple of (TOP_LEVEL_COMPLETION_MARKER, list of command names) or None
         """
-        index = self.INDEX[self._COMMAND_INDEX]
+        index = self.INDEX.get(self._COMMAND_INDEX) or {}
+        if not index:
+            logger.debug("Command index is empty, will fall back to loading all modules")
+            return None
         all_commands = list(index.keys())
         logger.debug("Top-level completion: %d commands available", len(all_commands))
         return TOP_LEVEL_COMPLETION_MARKER, all_commands
