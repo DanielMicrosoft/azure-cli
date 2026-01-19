@@ -219,7 +219,7 @@ class MainCommandsLoader(CLICommandsLoader):
         """
         from azure.cli.core.commands import AzCliCommand
 
-        def _stub_handler(*args, **kwargs):
+        def _stub_handler(*_args, **_kwargs):
             """Stub command handler used only for argument completion."""
             return None
 
