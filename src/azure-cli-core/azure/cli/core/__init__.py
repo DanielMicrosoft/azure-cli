@@ -607,20 +607,21 @@ class CommandIndex:
         self.cli_ctx = cli_ctx
 
     def _get_top_level_completion_commands(self):
-        """Get all command names for top-level completion optimization.
+        """Get top-level command names for tab completion optimization.
         
-        Returns marker and command list for creating stub commands without module loading.
-        Returns None if index is empty, triggering fallback to full module loading.
+        Returns marker and list of top-level commands (e.g., 'network', 'vm') for creating 
+        stub commands without module loading. Returns None if index is empty, triggering 
+        fallback to full module loading.
         
-        :return: tuple of (TOP_LEVEL_COMPLETION_MARKER, list of command names) or None
+        :return: tuple of (TOP_LEVEL_COMPLETION_MARKER, list of top-level command names) or None
         """
         index = self.INDEX.get(self._COMMAND_INDEX) or {}
         if not index:
             logger.debug("Command index is empty, will fall back to loading all modules")
             return None
-        all_commands = list(index.keys())
-        logger.debug("Top-level completion: %d commands available", len(all_commands))
-        return TOP_LEVEL_COMPLETION_MARKER, all_commands
+        top_level_commands = list(index.keys())
+        logger.debug("Top-level completion: %d commands available", len(top_level_commands))
+        return TOP_LEVEL_COMPLETION_MARKER, top_level_commands
 
     def get(self, args):
         """Get the corresponding module and extension list of a command.
