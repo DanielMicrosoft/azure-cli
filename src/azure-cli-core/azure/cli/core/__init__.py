@@ -26,6 +26,8 @@ logger = get_logger(__name__)
 EXCLUDED_PARAMS = ['self', 'raw', 'polling', 'custom_headers', 'operation_config',
                    'content_version', 'kwargs', 'client', 'no_wait']
 EVENT_FAILED_EXTENSION_LOAD = 'MainLoader.OnFailedExtensionLoad'
+# Marker used by CommandIndex.get() to signal top-level tab completion optimization
+TOP_LEVEL_COMPLETION_MARKER = '__top_level_completion__'
 
 # [Reserved, in case of future usage]
 # Modules that will always be loaded. They don't expose commands but hook into CLI core.
@@ -435,7 +437,7 @@ class MainCommandsLoader(CLICommandsLoader):
             if index_result:
                 index_modules, index_extensions = index_result
                 # Special case for top-level completion - create minimal command groups
-                if index_modules == '__top_level_completion__':
+                if index_modules == TOP_LEVEL_COMPLETION_MARKER:
                     from azure.cli.core.commands import AzCliCommand
                     # index_extensions contains the command names, not extensions
                     for cmd_name in index_extensions:
@@ -619,7 +621,7 @@ class CommandIndex:
                 index = self.INDEX[self._COMMAND_INDEX]
                 all_commands = list(index.keys())
                 logger.debug("Top-level completion: %d commands available", len(all_commands))
-                return '__top_level_completion__', all_commands  # special marker, command list
+                return TOP_LEVEL_COMPLETION_MARKER, all_commands  # special marker, command list
             return None
 
         # Get the top-level command, like `network` in `network vnet create -h`
