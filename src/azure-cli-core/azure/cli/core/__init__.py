@@ -212,17 +212,17 @@ class MainCommandsLoader(CLICommandsLoader):
 
     def _create_stub_commands_for_completion(self, command_names):
         """Create stub commands for top-level tab completion optimization.
-        
+
         Stub commands allow argcomplete to parse command names without loading modules.
-        
+
         :param command_names: List of command names to create stubs for
         """
         from azure.cli.core.commands import AzCliCommand
-        
+
         def _stub_handler(*args, **kwargs):
             """Stub command handler used only for argument completion."""
             return None
-        
+
         for cmd_name in command_names:
             if cmd_name not in self.command_table:
                 # Stub commands only need names for argcomplete parser construction.
@@ -608,11 +608,11 @@ class CommandIndex:
 
     def _get_top_level_completion_commands(self):
         """Get top-level command names for tab completion optimization.
-        
-        Returns marker and list of top-level commands (e.g., 'network', 'vm') for creating 
-        stub commands without module loading. Returns None if index is empty, triggering 
+
+        Returns marker and list of top-level commands (e.g., 'network', 'vm') for creating
+        stub commands without module loading. Returns None if index is empty, triggering
         fallback to full module loading.
-        
+
         :return: tuple of (TOP_LEVEL_COMPLETION_MARKER, list of top-level command names) or None
         """
         index = self.INDEX.get(self._COMMAND_INDEX) or {}
