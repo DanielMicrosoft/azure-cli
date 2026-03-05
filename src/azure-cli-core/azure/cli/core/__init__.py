@@ -701,6 +701,9 @@ class MainCommandsLoader(CLICommandsLoader):
         if timeout_seconds <= 0:
             logger.debug("Module load timeout disabled by core.module_load_timeout=%s", timeout_seconds)
             return None
+
+        logger.debug("Module load timeout set to %s seconds (core.module_load_timeout=%s).",
+                     timeout_seconds, raw_timeout)
         return timeout_seconds
 
     def _load_single_module(self, mod, args):
