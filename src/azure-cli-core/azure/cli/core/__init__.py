@@ -204,9 +204,16 @@ class AzCli(CLI):
         format_styled_text.theme = theme
 
 
+class ModuleLoadTimeoutError(TimeoutError):
+    """Raised when a command module does not finish loading within timeout."""
+
+    def __init__(self, module_name, timeout_seconds):
+        super().__init__("Module '{}' load timeout after {} seconds".format(module_name, timeout_seconds))
+
+
 class ModuleLoadResult:  # pylint: disable=too-few-public-methods
     def __init__(self, module_name, command_table, group_table, elapsed_time,
-                 error=None, traceback_str=None, command_loader=None, is_timeout=False):
+                 error=None, traceback_str=None, command_loader=None):
         self.module_name = module_name
         self.command_table = command_table
         self.group_table = group_table
@@ -214,7 +221,6 @@ class ModuleLoadResult:  # pylint: disable=too-few-public-methods
         self.error = error
         self.traceback_str = traceback_str
         self.command_loader = command_loader
-        self.is_timeout = is_timeout
 
 
 class MainCommandsLoader(CLICommandsLoader):
@@ -678,8 +684,7 @@ class MainCommandsLoader(CLICommandsLoader):
                             {},
                             {},
                             0,
-                            Exception(f"Module '{mod}' load timeout"),
-                            is_timeout=True
+                            ModuleLoadTimeoutError(mod, timeout_seconds)
                         ))
 
         return results, timed_out
@@ -716,7 +721,7 @@ class MainCommandsLoader(CLICommandsLoader):
         """Handle errors that occurred during module loading."""
         from azure.cli.core import telemetry
 
-        if result.is_timeout:
+        if isinstance(result.error, ModuleLoadTimeoutError):
             logger.warning("Skip per-module timeout fault telemetry for '%s'.", result.module_name)
             return
 

@@ -9,7 +9,7 @@ from unittest import mock
 import unittest
 from collections import namedtuple
 
-from azure.cli.core import AzCommandsLoader, MainCommandsLoader, ModuleLoadResult
+from azure.cli.core import AzCommandsLoader, MainCommandsLoader, ModuleLoadResult, ModuleLoadTimeoutError
 from azure.cli.core.commands import ExtensionCommandSource
 from azure.cli.core.extension import EXTENSIONS_MOD_PREFIX
 from azure.cli.core.mock import DummyCli
@@ -516,8 +516,7 @@ class TestCommandRegistration(unittest.TestCase):
         loader = cli.commands_loader
 
         timeout_result = ModuleLoadResult('timeout_mod', {}, {}, 0,
-                                          Exception("Module 'timeout_mod' load timeout"),
-                                          is_timeout=True)
+                          ModuleLoadTimeoutError('timeout_mod', 1))
         loader._handle_module_load_error(timeout_result)
         mock_set_exception.assert_not_called()
 
