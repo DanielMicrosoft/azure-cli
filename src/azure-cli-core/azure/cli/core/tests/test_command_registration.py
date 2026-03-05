@@ -429,6 +429,28 @@ class TestCommandRegistration(unittest.TestCase):
     @mock.patch('azure.cli.core.commands._load_command_loader', _mock_load_command_loader)
     @mock.patch('azure.cli.core.extension.get_extension_modname', _mock_get_extension_modname)
     @mock.patch('azure.cli.core.extension.get_extensions', _mock_get_extensions)
+    def test_command_index_not_updated_on_module_load_timeout(self):
+        from azure.cli.core._session import INDEX
+        from azure.cli.core import CommandIndex, __version__
+
+        cli = DummyCli()
+        loader = cli.commands_loader
+
+        sentinel_index = {'sentinel': ['azure.cli.command_modules.sentinel']}
+        INDEX[CommandIndex._COMMAND_INDEX_VERSION] = __version__
+        INDEX[CommandIndex._COMMAND_INDEX_CLOUD_PROFILE] = cli.cloud.profile
+        INDEX[CommandIndex._COMMAND_INDEX] = sentinel_index.copy()
+
+        with mock.patch.object(loader, '_load_modules', return_value=([], True)):
+            loader.load_command_table(None)
+
+        self.assertDictEqual(INDEX[CommandIndex._COMMAND_INDEX], sentinel_index)
+
+    @mock.patch('importlib.import_module', _mock_import_lib)
+    @mock.patch('pkgutil.iter_modules', _mock_iter_modules)
+    @mock.patch('azure.cli.core.commands._load_command_loader', _mock_load_command_loader)
+    @mock.patch('azure.cli.core.extension.get_extension_modname', _mock_get_extension_modname)
+    @mock.patch('azure.cli.core.extension.get_extensions', _mock_get_extensions)
     def test_command_index_always_loaded_extensions(self):
         import azure
         from azure.cli.core import CommandIndex
