@@ -73,7 +73,7 @@ class AzCli(CLI):
             register_ids_argument, register_global_subscription_argument, register_global_policy_argument)
         from azure.cli.core.cloud import get_active_cloud
         from azure.cli.core.commands.transform import register_global_transforms
-        from azure.cli.core._session import ACCOUNT, CONFIG, SESSION, INDEX, EXTENSION_INDEX, HELP_INDEX, VERSIONS
+        from azure.cli.core._session import ACCOUNT, CONFIG, SESSION, INDEX, EXTENSION_INDEX, HELP_INDEX, EXTENSION_HELP_INDEX, VERSIONS
         from azure.cli.core.util import handle_version_update
 
         from knack.util import ensure_dir
@@ -92,6 +92,7 @@ class AzCli(CLI):
         INDEX.load(os.path.join(azure_folder, 'commandIndex.json'))
         EXTENSION_INDEX.load(os.path.join(azure_folder, 'extensionIndex.json'))
         HELP_INDEX.load(os.path.join(azure_folder, 'helpIndex.json'))
+        EXTENSION_HELP_INDEX.load(os.path.join(azure_folder, 'extensionHelpIndex.json'))
         VERSIONS.load(os.path.join(azure_folder, 'versionCheck.json'))
         handle_version_update()
 
@@ -744,10 +745,11 @@ class CommandIndex:
 
         :param cli_ctx: Only needed when `get` or `update` is called.
         """
-        from azure.cli.core._session import INDEX, EXTENSION_INDEX, HELP_INDEX
+        from azure.cli.core._session import INDEX, EXTENSION_INDEX, HELP_INDEX, EXTENSION_HELP_INDEX
         self.INDEX = INDEX
         self.EXTENSION_INDEX = EXTENSION_INDEX
         self.HELP_INDEX = HELP_INDEX
+        self.EXTENSION_HELP_INDEX = EXTENSION_HELP_INDEX
         if cli_ctx:
             self.version = __version__
             self.cloud_profile = cli_ctx.cloud.profile
@@ -779,6 +781,13 @@ class CommandIndex:
         """Check if the extension index version and cloud profile are valid."""
         index_version = self.EXTENSION_INDEX.get(self._COMMAND_INDEX_VERSION)
         cloud_profile = self.EXTENSION_INDEX.get(self._COMMAND_INDEX_CLOUD_PROFILE)
+        return (index_version and index_version == self.version and
+                cloud_profile and cloud_profile == self.cloud_profile)
+
+    def _is_extension_help_index_valid(self):
+        """Check if the extension help index version and cloud profile are valid."""
+        index_version = self.EXTENSION_HELP_INDEX.get(self._COMMAND_INDEX_VERSION)
+        cloud_profile = self.EXTENSION_HELP_INDEX.get(self._COMMAND_INDEX_CLOUD_PROFILE)
         return (index_version and index_version == self.version and
                 cloud_profile and cloud_profile == self.cloud_profile)
 
@@ -917,6 +926,34 @@ class CommandIndex:
                 if mod not in blended[cmd]:
                     blended[cmd].append(mod)
         return blended
+
+    @staticmethod
+    def _blend_help_indices(base_help_index, extension_help_index):
+        """Blend packaged core help with extension-only help overlay."""
+        blended = {
+            'groups': dict((base_help_index or {}).get('groups') or {}),
+            'commands': dict((base_help_index or {}).get('commands') or {})
+        }
+        ext_help_index = extension_help_index or {}
+        for section in ('groups', 'commands'):
+            blended_section = blended[section]
+            for key, value in (ext_help_index.get(section) or {}).items():
+                blended_section[key] = value
+        return blended
+
+    @staticmethod
+    def _build_extension_help_overlay(base_help_index, full_help_index):
+        """Build extension-only help overlay by diffing full help against packaged core help."""
+        overlay = {'groups': {}, 'commands': {}}
+        base_help_index = base_help_index or {}
+        full_help_index = full_help_index or {}
+        for section in ('groups', 'commands'):
+            base_section = base_help_index.get(section) or {}
+            full_section = full_help_index.get(section) or {}
+            for key, value in full_section.items():
+                if key not in base_section or base_section[key] != value:
+                    overlay[section][key] = value
+        return overlay
 
     def _get_blended_latest_index(self):
         """Get effective index for latest profile by blending core and extension indices."""
@@ -1095,20 +1132,39 @@ class CommandIndex:
         :return: Dictionary mapping top-level commands to their short summaries, or None if not available
         """
         if self.cloud_profile == 'latest':
-            # Prefer local cache if available and valid, as it may include extension-specific help entries.
-            if self._is_index_valid():
-                help_index = self.HELP_INDEX.get(self._HELP_INDEX, {})
-                if not help_index:
-                    help_index = self._migrate_legacy_help_index() or {}
-                if help_index:
-                    logger.debug("Using cached local help index with %d entries", len(help_index))
-                    return help_index
-
+            # Packaged help is the base for latest profile.
             packaged_help_index = self._load_packaged_help_index()
-            if packaged_help_index:
-                logger.debug("Using packaged help index with %d entries", len(packaged_help_index))
-                return packaged_help_index
-            return None
+            if not packaged_help_index:
+                # Defensive fallback to local cache if packaged asset is unavailable.
+                if self._is_index_valid():
+                    help_index = self.HELP_INDEX.get(self._HELP_INDEX, {})
+                    if not help_index:
+                        help_index = self._migrate_legacy_help_index() or {}
+                    if help_index:
+                        logger.debug("Using cached local help index with %d entries", len(help_index))
+                        return help_index
+                return None
+
+            if self._is_extension_help_index_valid():
+                extension_help_index = self.EXTENSION_HELP_INDEX.get(self._HELP_INDEX, {})
+                if extension_help_index:
+                    logger.debug("Blending packaged help index with extension help overlay (%d groups, %d commands).",
+                                 len(extension_help_index.get('groups') or {}),
+                                 len(extension_help_index.get('commands') or {}))
+                return self._blend_help_indices(packaged_help_index, extension_help_index)
+
+            # Clear stale overlay cache if schema exists but metadata is invalid.
+            if self.EXTENSION_HELP_INDEX.get(self._HELP_INDEX):
+                self.EXTENSION_HELP_INDEX[self._COMMAND_INDEX_VERSION] = ""
+                self.EXTENSION_HELP_INDEX[self._COMMAND_INDEX_CLOUD_PROFILE] = ""
+                self.EXTENSION_HELP_INDEX[self._HELP_INDEX] = {}
+
+            if self._has_non_always_loaded_extensions():
+                logger.debug("Extension help overlay unavailable on latest profile. Triggering refresh via full load.")
+                return None
+
+            logger.debug("Using packaged help index with %d entries", len(packaged_help_index))
+            return packaged_help_index
 
         if not self._is_index_valid():
             return None
@@ -1127,6 +1183,20 @@ class CommandIndex:
 
         :param help_data: Help index data structure containing groups and commands
         """
+        if self.cloud_profile == 'latest':
+            packaged_help_index = self._load_packaged_help_index() or {'groups': {}, 'commands': {}}
+            extension_help_overlay = self._build_extension_help_overlay(packaged_help_index, help_data)
+
+            self.EXTENSION_HELP_INDEX[self._COMMAND_INDEX_VERSION] = __version__
+            self.EXTENSION_HELP_INDEX[self._COMMAND_INDEX_CLOUD_PROFILE] = self.cloud_profile
+            self.EXTENSION_HELP_INDEX[self._HELP_INDEX] = extension_help_overlay
+
+            # Keep local full help cache empty for latest; packaged base + extension overlay are authoritative.
+            self.HELP_INDEX[self._HELP_INDEX] = {}
+            if self.INDEX.get(self._HELP_INDEX):
+                self.INDEX[self._HELP_INDEX] = {}
+            return
+
         self.HELP_INDEX[self._HELP_INDEX] = help_data
         # Clear legacy key if it exists in commandIndex.json.
         if self.INDEX.get(self._HELP_INDEX):
@@ -1187,6 +1257,9 @@ class CommandIndex:
         self.EXTENSION_INDEX[self._COMMAND_INDEX_VERSION] = ""
         self.EXTENSION_INDEX[self._COMMAND_INDEX_CLOUD_PROFILE] = ""
         self.EXTENSION_INDEX[self._COMMAND_INDEX] = {}
+        self.EXTENSION_HELP_INDEX[self._COMMAND_INDEX_VERSION] = ""
+        self.EXTENSION_HELP_INDEX[self._COMMAND_INDEX_CLOUD_PROFILE] = ""
+        self.EXTENSION_HELP_INDEX[self._HELP_INDEX] = {}
         self.HELP_INDEX[self._HELP_INDEX] = {}
         # Clear legacy key if it exists in commandIndex.json.
         if self.INDEX.get(self._HELP_INDEX):

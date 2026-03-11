@@ -103,6 +103,9 @@ EXTENSION_INDEX = Session()
 # HELP_INDEX contains cached help summaries for top-level help display
 HELP_INDEX = Session()
 
+# EXTENSION_HELP_INDEX contains extension-only help overlay for top-level help display
+EXTENSION_HELP_INDEX = Session()
+
 # VERSIONS provides local versions and pypi versions.
 # DO NOT USE it to get the current version of azure-cli,
 # it could be lagged behind and can be used to check whether
