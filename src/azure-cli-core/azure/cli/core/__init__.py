@@ -476,6 +476,14 @@ class MainCommandsLoader(CLICommandsLoader):
                 # The index won't contain suppressed extensions
                 _update_command_table_from_extensions([], index_extensions)
 
+                # If we loaded all extensions as a safety fallback, refresh extension overlay cache
+                # so subsequent runs can use blended targeted loading.
+                if use_command_index and index_extensions is None and command_index.cloud_profile == 'latest':
+                    command_index.update_extension_index(self.command_table)
+                    # We already paid the cost to load all extensions. Refresh help overlay as well so
+                    # top-level help can stay on packaged base + extension overlay fast path.
+                    self._cache_help_index(command_index)
+
                 logger.debug("Loaded %d groups, %d commands.", len(self.command_group_table), len(self.command_table))
                 from azure.cli.core.util import roughly_parse_command
                 # The index may be outdated. Make sure the command appears in the loaded command table
@@ -517,6 +525,15 @@ class MainCommandsLoader(CLICommandsLoader):
 
                 logger.debug("Could not find a match in the command or command group table for '%s'. "
                              "The index may be outdated.", raw_cmd)
+
+                if command_index.cloud_profile == 'latest' and lookup_args and \
+                        not self.cli_ctx.data['completer_active']:
+                    top_command = lookup_args[0]
+                    packaged_core_index = command_index._get_packaged_command_index(ignore_extensions=True) or {}
+                    if top_command != 'help' and top_command not in packaged_core_index:
+                        logger.debug("Top-level command '%s' is not in packaged core index. "
+                                     "Skipping full core module reload.", top_command)
+                        return self.command_table
             else:
                 logger.debug("No module found from index for '%s'", args)
 
@@ -1048,12 +1065,19 @@ class CommandIndex:
                 if result:
                     return result
 
-                if force_load_all_extensions and normalized_args and not normalized_args[0].startswith('-') and \
-                        not self.cli_ctx.data['completer_active']:
-                    logger.debug("No match found in blended latest index for '%s'. Loading all extensions.",
-                                 normalized_args[0])
-                    # Load all extensions to resolve extension-only top-level commands without rebuilding all modules.
-                    return [], None
+                if normalized_args and not normalized_args[0].startswith('-') and \
+                    not self.cli_ctx.data['completer_active'] and not force_packaged_for_version and \
+                    top_command != 'help':
+                    # Unknown top-level command on latest should prefer extension-only retry and avoid
+                    # full core module rebuild to preserve packaged-index startup benefit.
+                    if has_non_always_loaded_extensions:
+                        logger.debug("No match found in blended latest index for '%s'. Loading all extensions.",
+                                     normalized_args[0])
+                        return [], None
+
+                    logger.debug("No match found in latest index for '%s' and no dynamic extensions are installed. "
+                                 "Skipping core module rebuild.", normalized_args[0])
+                    return [], []
 
                 logger.debug("No match found in blended latest index. Falling back to local command index.")
 
@@ -1225,20 +1249,26 @@ class CommandIndex:
         elapsed_time = timeit.default_timer() - start_time
         self.INDEX[self._COMMAND_INDEX] = index
 
-        # Maintain extension-only overlay for latest profile so packaged core can be blended.
-        if self.cloud_profile == 'latest':
-            extension_index = defaultdict(list)
-            for command_name, command in command_table.items():
-                top_command = command_name.split()[0]
-                module_name = command.loader.__module__
-                if module_name.startswith('azext_') and module_name not in extension_index[top_command]:
-                    extension_index[top_command].append(module_name)
-
-            self.EXTENSION_INDEX[self._COMMAND_INDEX_VERSION] = __version__
-            self.EXTENSION_INDEX[self._COMMAND_INDEX_CLOUD_PROFILE] = self.cloud_profile
-            self.EXTENSION_INDEX[self._COMMAND_INDEX] = extension_index
+        self.update_extension_index(command_table)
 
         logger.debug("Updated command index in %.3f seconds.", elapsed_time)
+
+    def update_extension_index(self, command_table):
+        """Update extension-only overlay index from a command table (latest profile only)."""
+        if self.cloud_profile != 'latest':
+            return
+
+        from collections import defaultdict
+        extension_index = defaultdict(list)
+        for command_name, command in command_table.items():
+            top_command = command_name.split()[0]
+            module_name = command.loader.__module__
+            if module_name.startswith('azext_') and module_name not in extension_index[top_command]:
+                extension_index[top_command].append(module_name)
+
+        self.EXTENSION_INDEX[self._COMMAND_INDEX_VERSION] = __version__
+        self.EXTENSION_INDEX[self._COMMAND_INDEX_CLOUD_PROFILE] = self.cloud_profile
+        self.EXTENSION_INDEX[self._COMMAND_INDEX] = extension_index
 
     def invalidate(self):
         """Invalidate the command index.
