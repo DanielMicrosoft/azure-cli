@@ -459,7 +459,6 @@ class MainCommandsLoader(CLICommandsLoader):
 
         if use_command_index:
             command_index = CommandIndex(self.cli_ctx)
-            lookup_args = args
             index_result = command_index.get(args)
             if index_result:
                 index_modules, index_extensions = index_result
@@ -471,7 +470,7 @@ class MainCommandsLoader(CLICommandsLoader):
 
                 # Always load modules and extensions, because some of them (like those in
                 # ALWAYS_LOADED_EXTENSIONS) don't expose a command, but hooks into handlers in CLI core
-                _update_command_table_from_modules(lookup_args, index_modules)
+                _update_command_table_from_modules(args, index_modules)
 
                 # The index won't contain suppressed extensions
                 _update_command_table_from_extensions([], index_extensions)
@@ -487,7 +486,7 @@ class MainCommandsLoader(CLICommandsLoader):
                 logger.debug("Loaded %d groups, %d commands.", len(self.command_group_table), len(self.command_table))
                 from azure.cli.core.util import roughly_parse_command
                 # The index may be outdated. Make sure the command appears in the loaded command table
-                raw_cmd = roughly_parse_command(lookup_args)
+                raw_cmd = roughly_parse_command(args)
                 for cmd in self.command_table:
                     if raw_cmd.startswith(cmd):
                         # For commands with positional arguments, the raw command won't match the one in the
@@ -526,9 +525,9 @@ class MainCommandsLoader(CLICommandsLoader):
                 logger.debug("Could not find a match in the command or command group table for '%s'. "
                              "The index may be outdated.", raw_cmd)
 
-                if command_index.cloud_profile == 'latest' and lookup_args and \
+                if command_index.cloud_profile == 'latest' and args and \
                         not self.cli_ctx.data['completer_active']:
-                    top_command = lookup_args[0]
+                    top_command = args[0]
                     packaged_core_index = command_index._get_packaged_command_index(ignore_extensions=True) or {}
                     if top_command != 'help' and top_command not in packaged_core_index:
                         logger.debug("Top-level command '%s' is not in packaged core index. "
@@ -1047,7 +1046,7 @@ class CommandIndex:
                 self.invalidate()
                 return None
 
-        return self._lookup_command_in_index(index, normalized_args)
+        return self._lookup_command_in_index(index, args)
 
     def _lookup_command_in_index(self, index, args, force_load_all_extensions=False):
         """Lookup command modules/extensions from a resolved index mapping."""
