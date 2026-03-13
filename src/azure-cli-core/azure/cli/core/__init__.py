@@ -459,7 +459,7 @@ class MainCommandsLoader(CLICommandsLoader):
 
         if use_command_index:
             command_index = CommandIndex(self.cli_ctx)
-            lookup_args = command_index._normalize_args_for_index_lookup(args)  # pylint: disable=protected-access
+            lookup_args = args
             index_result = command_index.get(args)
             if index_result:
                 index_modules, index_extensions = index_result
@@ -754,8 +754,6 @@ class CommandIndex:
     _HELP_INDEX = 'helpIndex'
     _PACKAGED_COMMAND_INDEX_LATEST = 'commandIndex.latest.json'
     _PACKAGED_HELP_INDEX_LATEST = 'helpIndex.latest.json'
-    _LEADING_GLOBAL_OPTS_WITH_VALUE = {'--output', '-o', '--query', '--subscription', '-s', '--tenant', '-t'}
-    _LEADING_GLOBAL_FLAG_OPTS = {'--debug', '--verbose', '--only-show-errors', '--help', '-h'}
 
     def __init__(self, cli_ctx=None):
         """Class to manage command index.
@@ -998,59 +996,14 @@ class CommandIndex:
             logger.debug("Blending packaged core index with local extension index.")
         return self._blend_command_indices(core_index, extension_index), extension_index_available, has_non_always_loaded_extensions
 
-    @classmethod
-    def _normalize_args_for_index_lookup(cls, args):
-        """Trim leading global options so index lookup can find the top-level command."""
-        if not args:
-            return args
-
-        i = 0
-        while i < len(args):
-            token = args[i]
-            if token == '--':
-                return args[i + 1:]
-
-            if not token.startswith('-'):
-                return args[i:]
-
-            if token.startswith('--'):
-                opt_name = token.split('=', 1)[0]
-                if '=' in token:
-                    i += 1
-                    continue
-                if opt_name in cls._LEADING_GLOBAL_OPTS_WITH_VALUE:
-                    i += 2
-                    continue
-                # Unknown long options are treated as flags here. If invalid, normal parser flow will raise later.
-                i += 1
-                continue
-
-            if token in cls._LEADING_GLOBAL_OPTS_WITH_VALUE:
-                i += 2
-                continue
-
-            if token in cls._LEADING_GLOBAL_FLAG_OPTS:
-                i += 1
-                continue
-
-            # Handle compact short options where value is attached, e.g. -ojson.
-            if len(token) > 2 and token[:2] in {'-o', '-s', '-t'}:
-                i += 1
-                continue
-
-            # Unknown short options are treated as flags here.
-            i += 1
-
-        return []
-
     def get(self, args):
         """Get the corresponding module and extension list of a command.
 
         :param args: command arguments, like ['network', 'vnet', 'create', '-h']
         :return: a tuple containing a list of modules and a list of extensions.
         """
-        normalized_args = self._normalize_args_for_index_lookup(args)
-        top_command = normalized_args[0] if normalized_args else None
+
+        top_command = args[0] if args else None
 
         # Resolve effective index.
         # For latest profile, blend packaged core index with local extension index.
@@ -1060,23 +1013,23 @@ class CommandIndex:
             if index is not None:
                 force_load_all_extensions = has_non_always_loaded_extensions and not extension_index_available and \
                     not force_packaged_for_version
-                result = self._lookup_command_in_index(index, normalized_args,
+                result = self._lookup_command_in_index(index, args,
                                                        force_load_all_extensions=force_load_all_extensions)
                 if result:
                     return result
 
-                if normalized_args and not normalized_args[0].startswith('-') and \
+                if args and not args[0].startswith('-') and \
                     not self.cli_ctx.data['completer_active'] and not force_packaged_for_version and \
                     top_command != 'help':
                     # Unknown top-level command on latest should prefer extension-only retry and avoid
                     # full core module rebuild to preserve packaged-index startup benefit.
                     if has_non_always_loaded_extensions:
                         logger.debug("No match found in blended latest index for '%s'. Loading all extensions.",
-                                     normalized_args[0])
+                                     args[0])
                         return [], None
 
                     logger.debug("No match found in latest index for '%s' and no dynamic extensions are installed. "
-                                 "Skipping core module rebuild.", normalized_args[0])
+                                 "Skipping core module rebuild.", args[0])
                     return [], []
 
                 logger.debug("No match found in blended latest index. Falling back to local command index.")
