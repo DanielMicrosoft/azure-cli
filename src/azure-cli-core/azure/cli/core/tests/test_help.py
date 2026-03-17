@@ -164,7 +164,9 @@ class TestHelpLoads(unittest.TestCase):
         shutil.rmtree(self._tempdirName)
         self.helps.clear()
         # Invalidate help cache to prevent test data from polluting production cache
-        from azure.cli.core._session import INDEX
+        from azure.cli.core._session import HELP_INDEX, INDEX
+        if 'helpIndex' in HELP_INDEX:
+            del HELP_INDEX['helpIndex']
         if 'helpIndex' in INDEX:
             del INDEX['helpIndex']
 
@@ -543,7 +545,7 @@ class TestHelpLoads(unittest.TestCase):
     def test_help_cache_storage_and_retrieval(self):
         """Test that help cache is stored and can be retrieved."""
         from azure.cli.core import CommandIndex
-        from azure.cli.core._session import INDEX
+        from azure.cli.core._session import HELP_INDEX
 
         test_help_data = {
             'groups': {
@@ -557,7 +559,7 @@ class TestHelpLoads(unittest.TestCase):
         command_index = CommandIndex(self.test_cli)
         command_index.set_help_index(test_help_data)
 
-        retrieved = INDEX.get('helpIndex')
+        retrieved = HELP_INDEX.get('helpIndex')
 
         self.assertIsNotNone(retrieved)
         self.assertIn('groups', retrieved)
@@ -568,17 +570,74 @@ class TestHelpLoads(unittest.TestCase):
     def test_help_cache_invalidation(self):
         """Test that cache is invalidated correctly."""
         from azure.cli.core import CommandIndex
-        from azure.cli.core._session import INDEX
+        from azure.cli.core._session import HELP_INDEX
 
         test_help_data = {'root': {'groups': {}, 'commands': {}}}
         command_index = CommandIndex(self.test_cli)
         command_index.set_help_index(test_help_data)
 
-        self.assertIn('helpIndex', INDEX)
+        self.assertIn('helpIndex', HELP_INDEX)
 
         command_index.invalidate()
 
+        self.assertEqual(HELP_INDEX.get('helpIndex'), {})
+
+    def test_help_cache_legacy_migration(self):
+        """Test legacy helpIndex migration from commandIndex.json to helpIndex.json."""
+        from azure.cli.core import CommandIndex, __version__
+        from azure.cli.core._session import HELP_INDEX, INDEX
+
+        test_help_data = {
+            'groups': {'legacy-group': {'summary': 'Legacy summary', 'tags': ''}},
+            'commands': {'legacy-cmd': {'summary': 'Legacy command', 'tags': ''}}
+        }
+
+        command_index = CommandIndex(self.test_cli)
+        INDEX[CommandIndex._COMMAND_INDEX_VERSION] = __version__
+        INDEX[CommandIndex._COMMAND_INDEX_CLOUD_PROFILE] = self.test_cli.cloud.profile
+        INDEX['helpIndex'] = test_help_data
+
+        migrated = command_index.get_help_index()
+
+        self.assertEqual(migrated, test_help_data)
+        self.assertEqual(HELP_INDEX.get('helpIndex'), test_help_data)
         self.assertEqual(INDEX.get('helpIndex'), {})
+
+    def test_packaged_help_index_file_schema(self):
+        """Test packaged helpIndex.latest.json schema and metadata."""
+        from azure.cli.core import CommandIndex, __version__
+
+        command_index = CommandIndex(self.test_cli)
+        packaged_help_index = command_index._load_packaged_help_index()  # pylint: disable=protected-access
+
+        self.assertIsNotNone(packaged_help_index)
+        self.assertIsInstance(packaged_help_index, dict)
+        self.assertIn('groups', packaged_help_index)
+        self.assertIn('commands', packaged_help_index)
+        self.assertEqual(command_index.version, __version__)
+
+    def test_help_index_uses_packaged_latest_without_local_index(self):
+        """Test latest profile uses packaged help index when local command/help index is invalid."""
+        from azure.cli.core import CommandIndex
+        from azure.cli.core._session import HELP_INDEX, INDEX
+
+        command_index = CommandIndex(self.test_cli)
+
+        # Simulate missing local command/help cache metadata.
+        INDEX[CommandIndex._COMMAND_INDEX_VERSION] = ""
+        INDEX[CommandIndex._COMMAND_INDEX_CLOUD_PROFILE] = ""
+        INDEX[CommandIndex._COMMAND_INDEX] = {}
+        HELP_INDEX[CommandIndex._HELP_INDEX] = {}
+
+        packaged_help_data = {
+            'groups': {'vm': {'summary': 'Manage VMs.', 'tags': ''}},
+            'commands': {'version': {'summary': 'Show version.', 'tags': ''}}
+        }
+
+        with mock.patch.object(CommandIndex, '_load_packaged_help_index', return_value=packaged_help_data):
+            help_index = command_index.get_help_index()
+
+        self.assertEqual(help_index, packaged_help_data)
 
     def test_show_cached_help_output(self):
         """Test that cached help is displayed correctly."""
