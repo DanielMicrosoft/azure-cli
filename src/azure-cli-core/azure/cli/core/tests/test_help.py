@@ -592,8 +592,8 @@ class TestHelpLoads(unittest.TestCase):
         self.assertEqual(HELP_INDEX.get('helpIndex'), {})
         self.assertEqual(EXTENSION_HELP_INDEX.get('helpIndex'), {})
 
-    def test_help_cache_legacy_migration(self):
-        """Test legacy helpIndex migration from commandIndex.json to helpIndex.json for non-latest."""
+    def test_help_cache_legacy_command_index_is_ignored(self):
+        """Test legacy helpIndex payload in commandIndex.json is not migrated for non-latest."""
         from azure.cli.core import CommandIndex, __version__
         from azure.cli.core._session import HELP_INDEX, INDEX
 
@@ -608,11 +608,11 @@ class TestHelpLoads(unittest.TestCase):
             INDEX[CommandIndex._COMMAND_INDEX_CLOUD_PROFILE] = '2019-03-01-hybrid'
             INDEX['helpIndex'] = test_help_data
 
-            migrated = command_index.get_help_index()
+            cached_help = command_index.get_help_index()
 
-        self.assertEqual(migrated, test_help_data)
-        self.assertEqual(HELP_INDEX.get('helpIndex'), test_help_data)
-        self.assertEqual(INDEX.get('helpIndex'), {})
+        self.assertIsNone(cached_help)
+        self.assertNotEqual(HELP_INDEX.get('helpIndex'), test_help_data)
+        self.assertEqual(INDEX.get('helpIndex'), test_help_data)
 
     def test_packaged_help_index_file_schema(self):
         """Test packaged helpIndex.latest.json schema and metadata."""

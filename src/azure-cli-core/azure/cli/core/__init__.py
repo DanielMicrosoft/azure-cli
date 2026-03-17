@@ -769,18 +769,6 @@ class CommandIndex:
             self.cloud_profile = cli_ctx.cloud.profile
         self.cli_ctx = cli_ctx
 
-    def _migrate_legacy_help_index(self):
-        """Migrate help cache from legacy commandIndex.json storage to helpIndex.json."""
-        legacy_help_index = self.INDEX.get(self._HELP_INDEX)
-        if not legacy_help_index:
-            return None
-
-        logger.debug("Migrating help index cache from commandIndex.json to helpIndex.json")
-        self.HELP_INDEX[self._HELP_INDEX] = legacy_help_index
-        # Keep commandIndex.json focused on command routing data.
-        self.INDEX[self._HELP_INDEX] = {}
-        return legacy_help_index
-
     def _is_index_valid(self):
         """Check if the command index version and cloud profile are valid.
 
@@ -1124,8 +1112,6 @@ class CommandIndex:
                 # Defensive fallback to local cache if packaged asset is unavailable.
                 if self._is_index_valid():
                     help_index = self.HELP_INDEX.get(self._HELP_INDEX, {})
-                    if not help_index:
-                        help_index = self._migrate_legacy_help_index() or {}
                     if help_index:
                         logger.debug("Using cached local help index with %d entries", len(help_index))
                         return help_index
@@ -1154,8 +1140,6 @@ class CommandIndex:
             return None
 
         help_index = self.HELP_INDEX.get(self._HELP_INDEX, {})
-        if not help_index:
-            help_index = self._migrate_legacy_help_index() or {}
         if help_index:
             logger.debug("Using cached help index with %d entries", len(help_index))
             return help_index
