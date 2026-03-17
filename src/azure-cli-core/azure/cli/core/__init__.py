@@ -805,6 +805,18 @@ class CommandIndex:
         return (index_version and index_version == self.version and
                 cloud_profile and cloud_profile == self.cloud_profile)
 
+    def _clear_extension_index_cache(self):
+        """Clear extension command index cache metadata and payload."""
+        self.EXTENSION_INDEX[self._COMMAND_INDEX_VERSION] = ""
+        self.EXTENSION_INDEX[self._COMMAND_INDEX_CLOUD_PROFILE] = ""
+        self.EXTENSION_INDEX[self._COMMAND_INDEX] = {}
+
+    def _clear_extension_help_overlay_cache(self):
+        """Clear extension help overlay cache metadata and payload."""
+        self.EXTENSION_HELP_INDEX[self._COMMAND_INDEX_VERSION] = ""
+        self.EXTENSION_HELP_INDEX[self._COMMAND_INDEX_CLOUD_PROFILE] = ""
+        self.EXTENSION_HELP_INDEX[self._HELP_INDEX] = {}
+
     def _get_top_level_completion_commands(self, index=None):
         """Get top-level command names for tab completion optimization.
 
@@ -987,9 +999,7 @@ class CommandIndex:
         else:
             if self.EXTENSION_INDEX.get(self._COMMAND_INDEX):
                 logger.debug("Extension index version or cloud profile is invalid, clearing local extension index.")
-                self.EXTENSION_INDEX[self._COMMAND_INDEX_VERSION] = ""
-                self.EXTENSION_INDEX[self._COMMAND_INDEX_CLOUD_PROFILE] = ""
-                self.EXTENSION_INDEX[self._COMMAND_INDEX] = {}
+                self._clear_extension_index_cache()
 
         if extension_index:
             logger.debug("Blending packaged core index with local extension index.")
@@ -1131,9 +1141,7 @@ class CommandIndex:
 
             # Clear stale overlay cache if schema exists but metadata is invalid.
             if self.EXTENSION_HELP_INDEX.get(self._HELP_INDEX):
-                self.EXTENSION_HELP_INDEX[self._COMMAND_INDEX_VERSION] = ""
-                self.EXTENSION_HELP_INDEX[self._COMMAND_INDEX_CLOUD_PROFILE] = ""
-                self.EXTENSION_HELP_INDEX[self._HELP_INDEX] = {}
+                self._clear_extension_help_overlay_cache()
 
             if self._has_non_always_loaded_extensions():
                 logger.debug("Extension help overlay unavailable on latest profile. Triggering refresh via full load.")
@@ -1236,12 +1244,8 @@ class CommandIndex:
         self.INDEX[self._COMMAND_INDEX_VERSION] = ""
         self.INDEX[self._COMMAND_INDEX_CLOUD_PROFILE] = ""
         self.INDEX[self._COMMAND_INDEX] = {}
-        self.EXTENSION_INDEX[self._COMMAND_INDEX_VERSION] = ""
-        self.EXTENSION_INDEX[self._COMMAND_INDEX_CLOUD_PROFILE] = ""
-        self.EXTENSION_INDEX[self._COMMAND_INDEX] = {}
-        self.EXTENSION_HELP_INDEX[self._COMMAND_INDEX_VERSION] = ""
-        self.EXTENSION_HELP_INDEX[self._COMMAND_INDEX_CLOUD_PROFILE] = ""
-        self.EXTENSION_HELP_INDEX[self._HELP_INDEX] = {}
+        self._clear_extension_index_cache()
+        self._clear_extension_help_overlay_cache()
         self.HELP_INDEX[self._HELP_INDEX] = {}
         # Clear legacy key if it exists in commandIndex.json.
         if self.INDEX.get(self._HELP_INDEX):
