@@ -831,6 +831,20 @@ class CommandIndex:
         logger.debug("Top-level completion: %d commands available", len(top_level_commands))
         return TOP_LEVEL_COMPLETION_MARKER, top_level_commands
 
+    def _can_use_packaged_command_index(self, ignore_extensions=False):
+        """Whether packaged command index can be used safely for this invocation."""
+        if self.cloud_profile != 'latest':
+            return False
+
+        if ignore_extensions:
+            return True
+
+        # If non-always-loaded extensions are installed, we need a full rebuild to include overrides/extensions.
+        if self._has_non_always_loaded_extensions():
+            return False
+
+        return True
+
     def _load_packaged_command_index(self):
         """Load packaged command index for latest profile if present."""
         file_path = os.path.join(os.path.dirname(__file__), self._PACKAGED_COMMAND_INDEX_LATEST)
@@ -881,20 +895,6 @@ class CommandIndex:
             return None
 
         return help_index
-
-    def _can_use_packaged_command_index(self, ignore_extensions=False):
-        """Whether packaged command index can be used safely for this invocation."""
-        if self.cloud_profile != 'latest':
-            return False
-
-        if ignore_extensions:
-            return True
-
-        # If non-always-loaded extensions are installed, we need a full rebuild to include overrides/extensions.
-        if self._has_non_always_loaded_extensions():
-            return False
-
-        return True
 
     @staticmethod
     def _has_non_always_loaded_extensions():
