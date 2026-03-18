@@ -315,6 +315,8 @@ class TestCommandRegistration(unittest.TestCase):
         from azure.cli.core import CommandIndex, __version__
 
         cli = DummyCli()
+        # This test validates legacy local index rebuild behavior, not latest packaged-index shortcuts.
+        cli.cloud.profile = "2019-03-01-hybrid"
         loader = cli.commands_loader
         command_index = CommandIndex(cli)
 
@@ -699,6 +701,8 @@ class TestCommandRegistration(unittest.TestCase):
         from azure.cli.core import CommandIndex
 
         cli = DummyCli()
+        # Use a non-latest profile so command index rebuild/usage follows local index semantics.
+        cli.cloud.profile = "2019-03-01-hybrid"
         loader = cli.commands_loader
         index = CommandIndex()
         index.invalidate()

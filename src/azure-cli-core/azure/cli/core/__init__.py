@@ -1077,7 +1077,7 @@ class CommandIndex:
 
         # Get the top-level command, like `network` in `network vnet create -h`
         top_command = args[0].lower()
-        index = self.INDEX[self._COMMAND_INDEX]
+        index = index or {}
 
         # Check the command index for (command: [module]) mapping, like
         # "network": ["azure.cli.command_modules.natgateway", "azure.cli.command_modules.network", "azext_firewall"]
