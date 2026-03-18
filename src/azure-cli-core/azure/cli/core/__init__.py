@@ -1118,51 +1118,57 @@ class CommandIndex:
 
         return None
 
+    def _get_help_index_cached_local(self, latest_fallback=False):
+        """Return cached local help index when available and index metadata is valid."""
+        if not self._is_index_valid():
+            return None
+
+        help_index = self.HELP_INDEX.get(self._HELP_INDEX, {})
+        if not help_index:
+            return None
+
+        if latest_fallback:
+            logger.debug("Using cached local help index with %d entries", len(help_index))
+        else:
+            logger.debug("Using cached help index with %d entries", len(help_index))
+        return help_index
+
+    def _get_help_index_latest(self):
+        """Return help index for latest profile using packaged help and extension overlay."""
+        # Packaged help is the base for latest profile.
+        packaged_help_index = self._load_packaged_help_index()
+        if not packaged_help_index:
+            # Defensive fallback to local cache if packaged asset is unavailable.
+            return self._get_help_index_cached_local(latest_fallback=True)
+
+        if self._is_extension_help_index_valid():
+            extension_help_index = self.EXTENSION_HELP_INDEX.get(self._HELP_INDEX, {})
+            if extension_help_index:
+                logger.debug("Blending packaged help index with extension help overlay (%d groups, %d commands).",
+                             len(extension_help_index.get('groups') or {}),
+                             len(extension_help_index.get('commands') or {}))
+            return self._blend_help_indices(packaged_help_index, extension_help_index)
+
+        # Clear stale overlay cache if schema exists but metadata is invalid.
+        if self.EXTENSION_HELP_INDEX.get(self._HELP_INDEX):
+            self._clear_extension_help_overlay_cache()
+
+        if self._has_non_always_loaded_extensions():
+            logger.debug("Extension help overlay unavailable on latest profile. Triggering refresh via full load.")
+            return None
+
+        logger.debug("Using packaged help index with %d entries", len(packaged_help_index))
+        return packaged_help_index
+
     def get_help_index(self):
         """Get the help index for top-level help display.
 
         :return: Dictionary mapping top-level commands to their short summaries, or None if not available
         """
         if self.cloud_profile == 'latest':
-            # Packaged help is the base for latest profile.
-            packaged_help_index = self._load_packaged_help_index()
-            if not packaged_help_index:
-                # Defensive fallback to local cache if packaged asset is unavailable.
-                if self._is_index_valid():
-                    help_index = self.HELP_INDEX.get(self._HELP_INDEX, {})
-                    if help_index:
-                        logger.debug("Using cached local help index with %d entries", len(help_index))
-                        return help_index
-                return None
+            return self._get_help_index_latest()
 
-            if self._is_extension_help_index_valid():
-                extension_help_index = self.EXTENSION_HELP_INDEX.get(self._HELP_INDEX, {})
-                if extension_help_index:
-                    logger.debug("Blending packaged help index with extension help overlay (%d groups, %d commands).",
-                                 len(extension_help_index.get('groups') or {}),
-                                 len(extension_help_index.get('commands') or {}))
-                return self._blend_help_indices(packaged_help_index, extension_help_index)
-
-            # Clear stale overlay cache if schema exists but metadata is invalid.
-            if self.EXTENSION_HELP_INDEX.get(self._HELP_INDEX):
-                self._clear_extension_help_overlay_cache()
-
-            if self._has_non_always_loaded_extensions():
-                logger.debug("Extension help overlay unavailable on latest profile. Triggering refresh via full load.")
-                return None
-
-            logger.debug("Using packaged help index with %d entries", len(packaged_help_index))
-            return packaged_help_index
-
-        if not self._is_index_valid():
-            return None
-
-        help_index = self.HELP_INDEX.get(self._HELP_INDEX, {})
-        if help_index:
-            logger.debug("Using cached help index with %d entries", len(help_index))
-            return help_index
-
-        return None
+        return self._get_help_index_cached_local()
 
     def set_help_index(self, help_data):
         """Set the help index data.
