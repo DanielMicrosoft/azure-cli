@@ -270,7 +270,7 @@ class MainCommandsLoader(CLICommandsLoader):
                 bool(args) and
                 not self.cli_ctx.data['completer_active'])
 
-    # pylint: disable=too-many-statements, too-many-locals
+    # pylint: disable=too-many-statements, too-many-locals, too-many-return-statements
     def load_command_table(self, args):
         from importlib import import_module
         import pkgutil
@@ -537,7 +537,7 @@ class MainCommandsLoader(CLICommandsLoader):
 
                 if self._is_latest_non_completion_invocation(command_index, args):
                     top_command = args[0]
-                    packaged_core_index = command_index._get_packaged_command_index(ignore_extensions=True) or {}
+                    packaged_core_index = command_index.get_packaged_core_index() or {}
                     if top_command != 'help' and top_command not in packaged_core_index:
                         logger.debug("Top-level command '%s' is not in packaged core index. "
                                      "Skipping full core module reload.", top_command)
@@ -881,12 +881,13 @@ class CommandIndex:
             logger.debug("Packaged help index file '%s' has invalid schema.", file_path)
             return None
 
-        if data.get(self._COMMAND_INDEX_VERSION) != self.version:
-            logger.debug("Packaged help index version doesn't match current CLI version.")
-            return None
-
-        if data.get(self._COMMAND_INDEX_CLOUD_PROFILE) != self.cloud_profile:
-            logger.debug("Packaged help index cloud profile doesn't match current cloud profile.")
+        version_matches = data.get(self._COMMAND_INDEX_VERSION) == self.version
+        profile_matches = data.get(self._COMMAND_INDEX_CLOUD_PROFILE) == self.cloud_profile
+        if not version_matches or not profile_matches:
+            if not version_matches:
+                logger.debug("Packaged help index version doesn't match current CLI version.")
+            if not profile_matches:
+                logger.debug("Packaged help index cloud profile doesn't match current cloud profile.")
             return None
 
         help_index = data.get(self._HELP_INDEX)
@@ -937,6 +938,10 @@ class CommandIndex:
 
         logger.debug("Using packaged command index for profile '%s'.", self.cloud_profile)
         return index
+
+    def get_packaged_core_index(self):
+        """Get packaged core command index mapping, ignoring extension presence checks."""
+        return self._get_packaged_command_index(ignore_extensions=True)
 
     @staticmethod
     def _blend_command_indices(core_index, extension_index):
