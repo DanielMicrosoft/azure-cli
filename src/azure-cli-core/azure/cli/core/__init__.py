@@ -1002,6 +1002,39 @@ class CommandIndex:
             logger.debug("Blending packaged core index with local extension index.")
         return self._blend_command_indices(core_index, extension_index), extension_index_available, has_non_always_loaded_extensions
 
+    def _resolve_latest_index_lookup(self, args, top_command):
+        """Resolve command lookup for latest profile using blended packaged and extension indices."""
+        force_packaged_for_version = bool(top_command == 'version')
+        index, extension_index_available, has_non_always_loaded_extensions = self._get_blended_latest_index()
+        if index is None:
+            return None
+
+        force_load_all_extensions = (has_non_always_loaded_extensions and
+                                     not extension_index_available and
+                                     not force_packaged_for_version)
+        result = self._lookup_command_in_index(index, args,
+                                               force_load_all_extensions=force_load_all_extensions)
+        if result:
+            return result
+
+        if (args and not args[0].startswith('-') and
+                not self.cli_ctx.data['completer_active'] and
+                not force_packaged_for_version and
+                top_command != 'help'):
+            # Unknown top-level command on latest should prefer extension-only retry and avoid
+            # full core module rebuild to preserve packaged-index startup benefit.
+            if has_non_always_loaded_extensions:
+                logger.debug("No match found in blended latest index for '%s'. Loading all extensions.",
+                             args[0])
+                return [], None
+
+            logger.debug("No match found in latest index for '%s' and no dynamic extensions are installed. "
+                         "Skipping core module rebuild.", args[0])
+            return [], []
+
+        logger.debug("No match found in blended latest index. Falling back to local command index.")
+        return None
+
     def get(self, args):
         """Get the corresponding module and extension list of a command.
 
@@ -1011,34 +1044,10 @@ class CommandIndex:
 
         top_command = args[0] if args else None
 
-        # Resolve effective index.
-        # For latest profile, blend packaged core index with local extension index.
         if self.cloud_profile == 'latest':
-            force_packaged_for_version = bool(top_command == 'version')
-            index, extension_index_available, has_non_always_loaded_extensions = self._get_blended_latest_index()
-            if index is not None:
-                force_load_all_extensions = has_non_always_loaded_extensions and not extension_index_available and \
-                    not force_packaged_for_version
-                result = self._lookup_command_in_index(index, args,
-                                                       force_load_all_extensions=force_load_all_extensions)
-                if result:
-                    return result
-
-                if args and not args[0].startswith('-') and \
-                    not self.cli_ctx.data['completer_active'] and not force_packaged_for_version and \
-                    top_command != 'help':
-                    # Unknown top-level command on latest should prefer extension-only retry and avoid
-                    # full core module rebuild to preserve packaged-index startup benefit.
-                    if has_non_always_loaded_extensions:
-                        logger.debug("No match found in blended latest index for '%s'. Loading all extensions.",
-                                     args[0])
-                        return [], None
-
-                    logger.debug("No match found in latest index for '%s' and no dynamic extensions are installed. "
-                                 "Skipping core module rebuild.", args[0])
-                    return [], []
-
-                logger.debug("No match found in blended latest index. Falling back to local command index.")
+            latest_result = self._resolve_latest_index_lookup(args, top_command)
+            if latest_result is not None:
+                return latest_result
 
         # For non-latest, use local command index and fallback logic.
         index = None
