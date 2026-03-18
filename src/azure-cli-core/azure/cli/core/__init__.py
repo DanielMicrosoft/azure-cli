@@ -263,6 +263,13 @@ class MainCommandsLoader(CLICommandsLoader):
                 command_index is not None and
                 command_index.cloud_profile == 'latest')
 
+    def _is_latest_non_completion_invocation(self, command_index, args):
+        """Return True for real latest-profile invocations (not shell completion)."""
+        return (command_index is not None and
+                command_index.cloud_profile == 'latest' and
+                bool(args) and
+                not self.cli_ctx.data['completer_active'])
+
     # pylint: disable=too-many-statements, too-many-locals
     def load_command_table(self, args):
         from importlib import import_module
@@ -528,8 +535,7 @@ class MainCommandsLoader(CLICommandsLoader):
                 logger.debug("Could not find a match in the command or command group table for '%s'. "
                              "The index may be outdated.", raw_cmd)
 
-                if command_index.cloud_profile == 'latest' and args and \
-                        not self.cli_ctx.data['completer_active']:
+                if self._is_latest_non_completion_invocation(command_index, args):
                     top_command = args[0]
                     packaged_core_index = command_index._get_packaged_command_index(ignore_extensions=True) or {}
                     if top_command != 'help' and top_command not in packaged_core_index:
