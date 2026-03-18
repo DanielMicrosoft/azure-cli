@@ -256,6 +256,13 @@ class MainCommandsLoader(CLICommandsLoader):
                 loader.command_table = self.command_table
                 loader._update_command_definitions()  # pylint: disable=protected-access
 
+    @staticmethod
+    def _should_update_extension_index(index_extensions, command_index):
+        """Return True when latest-profile extension overlays should be refreshed."""
+        return (index_extensions is None and
+                command_index is not None and
+                command_index.cloud_profile == 'latest')
+
     # pylint: disable=too-many-statements, too-many-locals
     def load_command_table(self, args):
         from importlib import import_module
@@ -475,12 +482,8 @@ class MainCommandsLoader(CLICommandsLoader):
                 # The index won't contain suppressed extensions
                 _update_command_table_from_extensions([], index_extensions)
 
-                # If we loaded all extensions as a safety fallback, refresh extension overlay cache
-                # so subsequent runs can use blended targeted loading.
-                if use_command_index and index_extensions is None and command_index.cloud_profile == 'latest':
+                if self._should_update_extension_index(index_extensions, command_index):
                     command_index.update_extension_index(self.command_table)
-                    # We already paid the cost to load all extensions. Refresh help overlay as well so
-                    # top-level help can stay on packaged base + extension overlay fast path.
                     self._cache_help_index(command_index)
 
                 logger.debug("Loaded %d groups, %d commands.", len(self.command_group_table), len(self.command_table))
