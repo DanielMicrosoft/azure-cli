@@ -19,8 +19,8 @@
       "azure.cli.command_modules.cdn"
     ],
     "aks": [
-      "azure.cli.command_modules.serviceconnector",
-      "azure.cli.command_modules.acs"
+      "azure.cli.command_modules.acs",
+      "azure.cli.command_modules.serviceconnector"
     ],
     "ams": [
       "azure.cli.command_modules.ams"
