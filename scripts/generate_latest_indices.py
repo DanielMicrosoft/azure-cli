@@ -279,7 +279,7 @@ def _run_verify(command_text, help_text):
         for path in mismatched:
             print(f'  - {path.relative_to(REPO_ROOT)}')
         print('Run:')
-        print('  env\\Scripts\\python.exe scripts\\generate_latest_indices.py generate')
+        print('  python scripts/generate_latest_indices.py generate')
         return 1
 
     print('Verified: latest index files are up-to-date.')
