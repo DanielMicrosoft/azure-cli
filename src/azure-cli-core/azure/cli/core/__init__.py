@@ -1186,6 +1186,16 @@ class CommandIndex:
 
         return self._get_help_index_cached_local()
 
+    def needs_latest_extension_help_overlay_refresh(self):
+        """Return True when latest-profile top-level help should refresh extension help overlay."""
+        if self.cloud_profile != 'latest':
+            return False
+
+        if self._is_extension_help_index_valid():
+            return False
+
+        return self._has_non_always_loaded_extensions()
+
     def set_help_index(self, help_data):
         """Set the help index data.
 
