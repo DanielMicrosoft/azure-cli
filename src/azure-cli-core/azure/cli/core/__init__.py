@@ -43,6 +43,18 @@ MODULE_LOAD_TIMEOUT_SECONDS = 60
 MAX_WORKER_THREAD_COUNT = 4
 
 
+def _get_top_level_command(args):
+    """Return normalized top-level command token or None when unavailable."""
+    if not args:
+        return None
+
+    top_command = args[0]
+    if not top_command or top_command.startswith('-'):
+        return None
+
+    return top_command.lower()
+
+
 def _configure_knack():
     """Override consts defined in knack to make them Azure CLI-specific."""
 
@@ -536,9 +548,9 @@ class MainCommandsLoader(CLICommandsLoader):
                              "The index may be outdated.", raw_cmd)
 
                 if self._is_latest_non_completion_invocation(command_index, args):
-                    top_command = args[0]
+                    top_command = _get_top_level_command(args)
                     packaged_core_index = command_index.get_packaged_core_index() or {}
-                    if top_command != 'help' and top_command not in packaged_core_index:
+                    if top_command and top_command != 'help' and top_command not in packaged_core_index:
                         logger.debug("Top-level command '%s' is not in packaged core index. "
                                      "Skipping full core module reload.", top_command)
                         return self.command_table
@@ -1047,7 +1059,7 @@ class CommandIndex:
         :return: a tuple containing a list of modules and a list of extensions.
         """
 
-        top_command = args[0] if args else None
+        top_command = _get_top_level_command(args)
 
         if self.cloud_profile == 'latest':
             latest_result = self._resolve_latest_index_lookup(args, top_command)
@@ -1074,14 +1086,13 @@ class CommandIndex:
 
         # Make sure the top-level command is provided, like `az version`.
         # Skip command index for `az` or `az --help`.
-        if not args or args[0].startswith('-'):
+        top_command = _get_top_level_command(args)
+        if not top_command:
             # For top-level completion (az [tab])
             if not args and self.cli_ctx.data.get('completer_active'):
                 return self._get_top_level_completion_commands(index=index)
             return None
 
-        # Get the top-level command, like `network` in `network vnet create -h`
-        top_command = args[0].lower()
         index = index or {}
 
         # Check the command index for (command: [module]) mapping, like

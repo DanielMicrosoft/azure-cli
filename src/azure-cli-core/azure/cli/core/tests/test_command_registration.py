@@ -519,6 +519,43 @@ class TestCommandRegistration(unittest.TestCase):
     @mock.patch('azure.cli.core.commands._load_command_loader', _mock_load_command_loader)
     @mock.patch('azure.cli.core.extension.get_extension_modname', _mock_get_extension_modname)
     @mock.patch('azure.cli.core.extension.get_extensions', _mock_get_extensions)
+    def test_command_index_latest_uppercase_help_triggers_full_core_reload(self):
+        from azure.cli.core._session import INDEX, EXTENSION_INDEX
+        from azure.cli.core import CommandIndex, __version__
+
+        cli = DummyCli()
+        loader = cli.commands_loader
+
+        INDEX[CommandIndex._COMMAND_INDEX_VERSION] = ""
+        INDEX[CommandIndex._COMMAND_INDEX_CLOUD_PROFILE] = ""
+        INDEX[CommandIndex._COMMAND_INDEX] = {}
+        EXTENSION_INDEX[CommandIndex._COMMAND_INDEX_VERSION] = ""
+        EXTENSION_INDEX[CommandIndex._COMMAND_INDEX_CLOUD_PROFILE] = ""
+        EXTENSION_INDEX[CommandIndex._COMMAND_INDEX] = {}
+
+        packaged_index = {
+            CommandIndex._COMMAND_INDEX_VERSION: __version__,
+            CommandIndex._COMMAND_INDEX_CLOUD_PROFILE: cli.cloud.profile,
+            CommandIndex._COMMAND_INDEX: {
+                'hello': ['azure.cli.command_modules.hello'],
+                'extra': ['azure.cli.command_modules.extra']
+            }
+        }
+
+        with mock.patch.object(CommandIndex, '_load_packaged_command_index', return_value=packaged_index):
+            cmd_tbl = loader.load_command_table(["HELP"])
+
+        # HELP should be treated the same as help and must not short-circuit core module reload.
+        self.assertIn('hello mod-only', cmd_tbl)
+        self.assertIn('extra final', cmd_tbl)
+        self.assertIn('hello', INDEX[CommandIndex._COMMAND_INDEX])
+        self.assertIn('extra', INDEX[CommandIndex._COMMAND_INDEX])
+
+    @mock.patch('importlib.import_module', _mock_import_lib)
+    @mock.patch('pkgutil.iter_modules', _mock_iter_modules)
+    @mock.patch('azure.cli.core.commands._load_command_loader', _mock_load_command_loader)
+    @mock.patch('azure.cli.core.extension.get_extension_modname', _mock_get_extension_modname)
+    @mock.patch('azure.cli.core.extension.get_extensions', _mock_get_extensions)
     def test_command_index_latest_unknown_non_core_skips_full_core_reload(self):
         from azure.cli.core._session import INDEX, EXTENSION_INDEX
         from azure.cli.core import CommandIndex, __version__
