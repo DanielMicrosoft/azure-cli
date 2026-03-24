@@ -1170,7 +1170,7 @@ class CommandIndex:
             self._clear_extension_help_overlay_cache()
 
         if self._has_non_always_loaded_extensions():
-            logger.debug("Extension help overlay unavailable on latest profile. Triggering refresh via full load.")
+            logger.debug("Extension help overlay unavailable on latest profile. Help index will be refreshed when overlay becomes available.")
             return None
 
         logger.debug("Using packaged help index with %d entries", len(packaged_help_index))
