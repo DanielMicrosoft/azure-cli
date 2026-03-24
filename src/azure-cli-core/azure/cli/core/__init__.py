@@ -31,6 +31,8 @@ EXCLUDED_PARAMS = ['self', 'raw', 'polling', 'custom_headers', 'operation_config
 EVENT_FAILED_EXTENSION_LOAD = 'MainLoader.OnFailedExtensionLoad'
 # Marker used by CommandIndex.get() to signal top-level tab completion optimization
 TOP_LEVEL_COMPLETION_MARKER = '__top_level_completion__'
+# Internal sentinel used to trigger latest-profile extension help overlay refresh path.
+REFRESH_EXTENSION_HELP_OVERLAY_SENTINEL = '__refresh_extension_help_overlay__'
 
 # [Reserved, in case of future usage]
 # Modules that will always be loaded. They don't expose commands but hook into CLI core.

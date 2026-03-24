@@ -745,7 +745,7 @@ class TestHelpLoads(unittest.TestCase):
 
     def test_try_show_cached_help_refreshes_latest_extension_overlay(self):
         """Test top-level cached help retries after refreshing latest extension help overlay."""
-        from azure.cli.core import CommandIndex
+        from azure.cli.core import CommandIndex, REFRESH_EXTENSION_HELP_OVERLAY_SENTINEL
 
         invoker = self.test_cli.invocation_cls(
             cli_ctx=self.test_cli,
@@ -766,7 +766,7 @@ class TestHelpLoads(unittest.TestCase):
             result = invoker._try_show_cached_help(['--help', '--debug'])
 
         self.assertIsNotNone(result)
-        mock_load_cmd_table.assert_called_once_with(['__refresh_extension_help_overlay__'])
+        mock_load_cmd_table.assert_called_once_with([REFRESH_EXTENSION_HELP_OVERLAY_SENTINEL])
         mock_show_cached_help.assert_called_once_with(refreshed_help_data, ['--help', '--debug'])
 
     # create a temporary file in the temp dir. Return the path of the file.
