@@ -177,7 +177,7 @@ You can pass an explicit Azure CLI checkout path when needed:
 
 ```
 azdev latest-index generate --cli /path/to/azure-cli
-azdev latest-index verify --repo /path/to/azure-cli
+azdev latest-index verify --cli /path/to/azure-cli
 ```
 
 `azdev latest-index verify` exits non-zero when generated output differs from
