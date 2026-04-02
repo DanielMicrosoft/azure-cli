@@ -278,8 +278,10 @@ def _run_verify(command_text, help_text):
         print('Generated latest index files are out of date:')
         for path in mismatched:
             print(f'  - {path.relative_to(REPO_ROOT)}')
-        print('Run:')
+        print('Run either:')
         print('  azdev latest-index generate --cli .')
+        print('or:')
+        print('  python scripts/generate_latest_indices.py generate')
         return 1
 
     print('Verified: latest index files are up-to-date.')
