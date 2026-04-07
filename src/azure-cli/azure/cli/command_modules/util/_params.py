@@ -7,7 +7,6 @@
 # pylint: disable=line-too-long
 def load_arguments(self, _):
     from azure.cli.core.commands.parameters import get_enum_type, get_three_state_flag
-    from azure.cli.core.style import Theme
 
     with self.argument_context('rest') as c:
         c.argument('method', options_list=['--method', '-m'],
