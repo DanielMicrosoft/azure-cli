@@ -284,7 +284,7 @@ class TestCommandRegistration(unittest.TestCase):
 
         # Load all commands.
         cmd_tbl = loader.load_command_table(None)
-        
+
         # Verify EVERY command in command_table has an entry in cmd_to_loader_map
         # This is exactly what azdev does before it hits KeyError
         for cmd_name in cmd_tbl:
