@@ -318,6 +318,7 @@ class MainCommandsLoader(CLICommandsLoader):
 
             start_time = time.perf_counter()
             logger.debug("Loading command modules...")
+            logger.debug(self.header_mod)
             results = self._load_modules(args, command_modules)
 
             count, cumulative_group_count, cumulative_command_count = \
@@ -680,6 +681,8 @@ class MainCommandsLoader(CLICommandsLoader):
             module_command_table, module_group_table, command_loader = _load_module_command_loader(self, args, mod)
             import_module_breaking_changes(mod)
             elapsed_time = time.perf_counter() - start_time
+            logger.debug(self.item_format_string, mod, elapsed_time,
+                         len(module_group_table), len(module_command_table))
             return ModuleLoadResult(mod, module_command_table, module_group_table, elapsed_time, command_loader=command_loader)
         except Exception as ex:  # pylint: disable=broad-except
             tb_str = traceback.format_exc()
@@ -712,13 +715,9 @@ class MainCommandsLoader(CLICommandsLoader):
         self.command_table.update(result.command_table)
         self.command_group_table.update(result.group_table)
 
-        logger.debug(self.item_format_string, result.module_name, result.elapsed_time,
-                     len(result.group_table), len(result.command_table))
-
     def _process_results_with_timing(self, results):
         """Process pre-loaded module results with timing and progress reporting."""
         logger.debug("Loaded command modules:")
-        logger.debug(self.header_mod)
 
         count = 0
         cumulative_group_count = 0
