@@ -3670,7 +3670,8 @@ def aks_mesh_enable(
         ca_cert_object_name=None,
         ca_key_object_name=None,
         root_cert_object_name=None,
-        cert_chain_object_name=None
+        cert_chain_object_name=None,
+        proxy_redirection_mechanism=None,
 ):
     instance = client.get(resource_group_name, name)
     addon_profiles = instance.addon_profiles
@@ -3689,7 +3690,8 @@ def aks_mesh_enable(
                             root_cert_object_name,
                             cert_chain_object_name,
                             revision=revision,
-                            enable_azure_service_mesh=True)
+                            enable_azure_service_mesh=True,
+                            proxy_redirection_mechanism=proxy_redirection_mechanism)
 
 
 def aks_mesh_disable(
@@ -3868,6 +3870,23 @@ def aks_mesh_upgrade_rollback(
         mesh_upgrade_command=CONST_AZURE_SERVICE_MESH_UPGRADE_COMMAND_ROLLBACK)
 
 
+def aks_mesh_proxy_redirection_mechanism(
+        cmd,
+        client,
+        resource_group_name,
+        name,
+        mechanism,
+):
+    """Set the proxy redirection mechanism for Azure Service Mesh."""
+    return _aks_mesh_update(
+        cmd,
+        client,
+        resource_group_name,
+        name,
+        proxy_redirection_mechanism=mechanism,
+    )
+
+
 def _aks_mesh_get_supported_revisions(
         cmd,
         client,
@@ -3901,6 +3920,7 @@ def _aks_mesh_update(
         revision=None,
         yes=False,
         mesh_upgrade_command=None,
+        proxy_redirection_mechanism=None,
 ):
     raw_parameters = locals()
 

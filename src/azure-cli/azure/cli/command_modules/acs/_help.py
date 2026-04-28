@@ -2769,11 +2769,17 @@ helps["aks mesh enable"] = """
       - name: --root-cert-object-name
         type: string
         short-summary: Root cert object name in the Azure Keyvault.
+      - name: --proxy-redirection-mechanism
+        type: string
+        short-summary: Set the proxy redirection mechanism.
+        long-summary: Allowed values are "CNIChaining" which uses CNI plugins for traffic redirection, and "InitContainers" which uses privileged init containers.
     examples:
       - name: Enable Azure Service Mesh with selfsigned CA.
         text: az aks mesh enable --resource-group MyResourceGroup --name MyManagedCluster
       - name: Enable Azure Service Mesh with plugin CA.
         text: az aks mesh enable --resource-group MyResourceGroup --name MyManagedCluster --key-vault-id /subscriptions/00000/resourceGroups/foo/providers/Microsoft.KeyVault/vaults/foo --ca-cert-object-name my-ca-cert --ca-key-object-name my-ca-key --cert-chain-object-name my-cert-chain --root-cert-object-name my-root-cert
+      - name: Enable Azure Service Mesh with CNI chaining.
+        text: az aks mesh enable --resource-group MyResourceGroup --name MyManagedCluster --proxy-redirection-mechanism CNIChaining
 """
 
 helps["aks mesh disable"] = """
@@ -2904,6 +2910,24 @@ helps["aks mesh upgrade rollback"] = """
     examples:
       - name: Rollback Azure Service Mesh upgrade.
         text: az aks mesh upgrade rollback --resource-group MyResourceGroup --name MyManagedCluster
+"""
+
+helps['aks mesh proxy-redirection-mechanism'] = """
+    type: command
+    short-summary: Set the proxy redirection mechanism for Azure Service Mesh.
+    long-summary: >
+      This command sets the proxy redirection mechanism for Azure Service Mesh
+      on a cluster that already has the service mesh enabled.
+    parameters:
+      - name: --mechanism
+        type: string
+        short-summary: The proxy redirection mechanism.
+        long-summary: Allowed values are "CNIChaining" which uses CNI plugins for traffic redirection, and "InitContainers" which uses privileged init containers.
+    examples:
+      - name: Set proxy redirection mechanism to CNI chaining.
+        text: az aks mesh proxy-redirection-mechanism --resource-group MyResourceGroup --name MyManagedCluster --mechanism CNIChaining
+      - name: Set proxy redirection mechanism to init containers.
+        text: az aks mesh proxy-redirection-mechanism --resource-group MyResourceGroup --name MyManagedCluster --mechanism InitContainers
 """
 
 helps["aks approuting"] = """

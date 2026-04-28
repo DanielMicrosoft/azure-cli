@@ -2312,6 +2312,89 @@ class AzureKubernetesServiceScenarioTest(ScenarioTest):
             self.is_empty(),
         ])
 
+    @AllowLargeResponse()
+    @AKSCustomResourceGroupPreparer(random_name_length=17, name_prefix='clitest', location='westus2')
+    def test_aks_azure_service_mesh_enable_disable_istio_cni(self, resource_group, resource_group_location):
+        """ This test case exercises setting the proxy redirection mechanism for the service mesh profile.
+        It creates a cluster, enables azure service mesh with InitContainers as the initial mechanism,
+        then switches to CNIChaining and back to InitContainers using `aks mesh proxy-redirection-mechanism`.
+        """
+
+        # reset the count so in replay mode the random names will start with 0
+        self.test_resources_count = 0
+        # kwargs for string formatting
+        aks_name = self.create_random_name('cliakstest', 16)
+
+        # Get the latest supported revision (compatible with current K8s versions)
+        mesh_revisions_cmd = f"aks mesh get-revisions -l {resource_group_location}"
+        mesh_revisions = self.cmd(mesh_revisions_cmd).get_output_in_json()
+        revisions = [r["revision"] for r in mesh_revisions["meshRevisions"]]
+        sorted_revisions = sort_asm_revisions(revisions)
+        latest_revision = sorted_revisions[-1]
+
+        self.kwargs.update({
+            'resource_group': resource_group,
+            'name': aks_name,
+            'location': resource_group_location,
+            'ssh_key_value': self.generate_ssh_keys(),
+            'revision': latest_revision,
+        })
+
+        # create cluster without --enable-azure-service-mesh
+        create_cmd = (
+            'aks create --resource-group={resource_group} --name={name} --location={location} '
+            '--aks-custom-headers=AKSHTTPCustomFeatures=Microsoft.ContainerService/AzureServiceMeshPreview '
+            '--ssh-key-value={ssh_key_value} --output=json'
+        )
+        self.cmd(create_cmd, checks=[
+            self.check('provisioningState', 'Succeeded'),
+        ])
+
+        # enable azure service mesh with InitContainers as the initial mechanism
+        # this ensures a deterministic test order regardless of revision defaults
+        enable_mesh_cmd = (
+            'aks mesh enable --resource-group={resource_group} --name={name} '
+            '--revision={revision} --proxy-redirection-mechanism InitContainers'
+        )
+        self.cmd(enable_mesh_cmd, checks=[
+            self.check('serviceMeshProfile.mode', 'Istio'),
+            self.check('serviceMeshProfile.istio.components.proxyRedirectionMechanism', 'InitContainers'),
+        ])
+
+        # verify idempotency: setting same mechanism fails
+        self.cmd(
+            'aks mesh proxy-redirection-mechanism --resource-group={resource_group} --name={name} --mechanism InitContainers',
+            expect_failure=True,
+        )
+
+        # switch to CNIChaining
+        self.cmd(
+            'aks mesh proxy-redirection-mechanism --resource-group={resource_group} --name={name} --mechanism CNIChaining',
+            checks=[
+                self.check('serviceMeshProfile.istio.components.proxyRedirectionMechanism', 'CNIChaining'),
+            ],
+        )
+
+        # verify idempotency: setting same mechanism fails
+        self.cmd(
+            'aks mesh proxy-redirection-mechanism --resource-group={resource_group} --name={name} --mechanism CNIChaining',
+            expect_failure=True,
+        )
+
+        # switch back to InitContainers
+        self.cmd(
+            'aks mesh proxy-redirection-mechanism --resource-group={resource_group} --name={name} --mechanism InitContainers',
+            checks=[
+                self.check('serviceMeshProfile.istio.components.proxyRedirectionMechanism', 'InitContainers'),
+            ],
+        )
+
+        # delete the cluster
+        delete_cmd = 'aks delete --resource-group={resource_group} --name={name} --yes --no-wait'
+        self.cmd(delete_cmd, checks=[
+            self.is_empty(),
+        ])
+
     # live only due to installing kubectl binary
     @live_only()
     @AllowLargeResponse()

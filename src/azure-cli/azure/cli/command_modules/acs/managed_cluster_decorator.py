@@ -5171,6 +5171,45 @@ class AKSManagedClusterContext(BaseAKSContext):
 
         return new_profile, updated
 
+    def _handle_istio_cni_asm(self, new_profile: ServiceMeshProfile) -> Tuple[ServiceMeshProfile, bool]:
+        """Handle proxy redirection mechanism for Azure Service Mesh."""
+        updated = False
+        proxy_redirection_mechanism = self.raw_param.get("proxy_redirection_mechanism", None)
+
+        if proxy_redirection_mechanism is None:
+            return new_profile, updated
+
+        # Check if service mesh is enabled before allowing changes
+        if new_profile is None or new_profile.mode == CONST_AZURE_SERVICE_MESH_MODE_DISABLED:
+            raise ArgumentUsageError(
+                "Istio has not been enabled for this cluster, please refer to https://aka.ms/asm-aks-addon-docs "
+                "for more details on enabling Azure Service Mesh."
+            )
+
+        # Ensure istio profile exists
+        if new_profile.istio is None:
+            new_profile.istio = self.models.IstioServiceMesh()  # pylint: disable=no-member
+
+        # Ensure components exist
+        if new_profile.istio.components is None:
+            new_profile.istio.components = self.models.IstioComponents()  # pylint: disable=no-member
+
+        current_mechanism = getattr(
+            new_profile.istio.components,
+            "proxy_redirection_mechanism",
+            None,
+        )
+
+        if current_mechanism == proxy_redirection_mechanism:
+            raise ArgumentUsageError(
+                f"Proxy redirection mechanism is already set to '{proxy_redirection_mechanism}' for this cluster."
+            )
+
+        new_profile.istio.components.proxy_redirection_mechanism = proxy_redirection_mechanism
+        updated = True
+
+        return new_profile, updated
+
     # pylint: disable=too-many-branches,too-many-locals,too-many-statements
     def update_azure_service_mesh_profile(self) -> ServiceMeshProfile:
         """ Update azure service mesh profile.
@@ -5204,6 +5243,9 @@ class AKSManagedClusterContext(BaseAKSContext):
 
         new_profile, updated_upgrade_asm = self._handle_upgrade_asm(new_profile)
         updated |= updated_upgrade_asm
+
+        new_profile, updated_istio_cni = self._handle_istio_cni_asm(new_profile)
+        updated |= updated_istio_cni
 
         if updated:
             return new_profile
