@@ -58,6 +58,9 @@ from ._client_factory import (web_client_factory, ex_handler_factory, providers_
                               appcontainers_client_factory)
 from ._appservice_utils import _generic_site_operation, _generic_settings_operation
 from ._appservice_utils import MSI_LOCAL_ID
+from ._deployment_context_engine import (
+    raise_enriched_deployment_error, EnrichedDeploymentError
+)
 from .utils import (_normalize_sku,
                     get_sku_tier,
                     retryable_method,
@@ -868,7 +871,7 @@ def enable_zip_deploy_flex(cmd, resource_group_name, name, src, timeout=None, sl
 
 # This funtion performs deployment using /zipdeploy for both function app and web app
 def enable_zip_deploy(cmd, resource_group_name, name, src, timeout=None, slot=None,
-                      track_status=False, enable_kudu_warmup=True):
+                      track_status=False, enable_kudu_warmup=True, enriched_errors=False):
     logger.warning("Getting scm site credentials for zip deployment")
 
     try:
@@ -892,6 +895,8 @@ def enable_zip_deploy(cmd, resource_group_name, name, src, timeout=None, slot=No
     # check if the app is a linux web app
     app_is_linux_webapp = is_linux_webapp(app)
     app_is_function_app = is_functionapp(app)
+
+    _should_enrich_errors = enriched_errors and not app_is_function_app and app_is_linux_webapp
 
     # Read file content
     with open(os.path.realpath(os.path.expanduser(src)), 'rb') as fs:
@@ -926,16 +931,30 @@ def enable_zip_deploy(cmd, resource_group_name, name, src, timeout=None, slot=No
     if res.status_code == 202:
         response_body = None
         if track_status:
-            response_body = _check_runtimestatus_with_deploymentstatusapi(cmd, resource_group_name, name, slot,
-                                                                          deployment_status_url, is_async=True,
-                                                                          timeout=timeout)
+            response_body = _check_runtimestatus_with_deploymentstatusapi(
+                cmd, resource_group_name, name, slot,
+                deployment_status_url, is_async=True,
+                timeout=timeout)
         else:
-            response_body = _check_zip_deployment_status(cmd, resource_group_name, name, deployment_status_url,
-                                                         slot, timeout)
+            response_body = _check_zip_deployment_status(
+                cmd, resource_group_name, name, deployment_status_url,
+                slot, timeout)
         return response_body
 
     # check if there's an ongoing process
     if res.status_code == 409:
+        if _should_enrich_errors:
+            raise_enriched_deployment_error(
+                cmd=cmd,
+                resource_group_name=resource_group_name,
+                webapp_name=name,
+                slot=slot,
+                artifact_type="zip",
+                status_code=409,
+                error_message=res.text if res.text else "Deployment conflict (HTTP 409)",
+                last_known_step="Zip deployment HTTP request",
+                kudu_status="409"
+            )
         raise UnclassifiedUserFault("There may be an ongoing deployment or your app setting has "
                                     "WEBSITE_RUN_FROM_PACKAGE. Please track your deployment in {} and ensure the "
                                     "WEBSITE_RUN_FROM_PACKAGE app setting is removed. Use 'az webapp config "
@@ -946,6 +965,18 @@ def enable_zip_deploy(cmd, resource_group_name, name, src, timeout=None, slot=No
 
     # check if an error occured during deployment
     if res.status_code:
+        if _should_enrich_errors and res.status_code >= 400:
+            raise_enriched_deployment_error(
+                cmd=cmd,
+                resource_group_name=resource_group_name,
+                webapp_name=name,
+                slot=slot,
+                artifact_type="zip",
+                status_code=res.status_code,
+                error_message=res.text if res.text else None,
+                last_known_step="Zip deployment HTTP request",
+                kudu_status=str(res.status_code)
+            )
         raise AzureInternalError("An error occured during deployment. Status Code: {}, Details: {}"
                                  .format(res.status_code, res.text))
 
@@ -9783,7 +9814,7 @@ def get_history_triggered_webjob(cmd, resource_group_name, name, webjob_name, sl
 def webapp_up(cmd, name=None, resource_group_name=None, plan=None, location=None, sku=None,  # pylint: disable=too-many-statements,too-many-branches
               os_type=None, runtime=None, dryrun=False, logs=False, launch_browser=False, html=False,
               app_service_environment=None, track_status=True, enable_kudu_warmup=True, basic_auth="",
-              auto_generated_domain_name_label_scope=None):
+              auto_generated_domain_name_label_scope=None, enriched_errors=False):
     if not name:
         name = generate_default_app_name(cmd)
 
@@ -9974,7 +10005,7 @@ def webapp_up(cmd, name=None, resource_group_name=None, plan=None, location=None
     # zip contents & deploy
     zip_file_path = zip_contents_from_dir(src_dir, language)
     enable_zip_deploy(cmd, rg_name, name, zip_file_path, track_status=track_status,
-                      enable_kudu_warmup=enable_kudu_warmup)
+                      enable_kudu_warmup=enable_kudu_warmup, enriched_errors=enriched_errors)
 
     if launch_browser:
         logger.warning("Launching app using default browser")
@@ -10214,7 +10245,8 @@ def perform_onedeploy_webapp(cmd,
                              timeout=None,
                              slot=None,
                              track_status=True,
-                             enable_kudu_warmup=True):
+                             enable_kudu_warmup=True,
+                             enriched_errors=False):
     params = OneDeployParams()
 
     params.cmd = cmd
@@ -10232,6 +10264,7 @@ def perform_onedeploy_webapp(cmd,
     params.slot = slot
     params.track_status = track_status
     params.enable_kudu_warmup = enable_kudu_warmup
+    params.enriched_errors = enriched_errors
 
     client = web_client_factory(cmd.cli_ctx)
     app = client.web_apps.get(resource_group_name, name)
@@ -10270,6 +10303,7 @@ class OneDeployParams:
         self.enable_kudu_warmup = None
         self.is_linux_webapp = None
         self.is_functionapp = None
+        self.enriched_errors = False
 # pylint: enable=too-many-instance-attributes,too-few-public-methods
 
 
@@ -10567,14 +10601,17 @@ def _make_onedeploy_request(params):
         response_body = None
         if poll_async_deployment_for_debugging:
             if params.track_status is not None and params.track_status:
-                response_body = _check_runtimestatus_with_deploymentstatusapi(params.cmd, params.resource_group_name,
-                                                                              params.webapp_name, params.slot,
-                                                                              deployment_status_url,
-                                                                              params.is_async_deployment,
-                                                                              params.timeout)
+                response_body = _check_runtimestatus_with_deploymentstatusapi(
+                    params.cmd, params.resource_group_name,
+                    params.webapp_name, params.slot,
+                    deployment_status_url,
+                    params.is_async_deployment,
+                    params.timeout)
             else:
-                response_body = _check_zip_deployment_status(params.cmd, params.resource_group_name, params.webapp_name,
-                                                             deployment_status_url, params.slot, params.timeout)
+                response_body = _check_zip_deployment_status(
+                    params.cmd, params.resource_group_name,
+                    params.webapp_name,
+                    deployment_status_url, params.slot, params.timeout)
             logger.info('Server response: %s', response_body)
         else:
             if 'application/json' in response.headers.get('content-type', ""):
@@ -10591,20 +10628,48 @@ def _make_onedeploy_request(params):
     if response.status_code == 404:
         raise ResourceNotFoundError("This API isn't available in this environment yet!")
 
+    _should_enrich_errors = params.enriched_errors and params.is_linux_webapp and not params.is_functionapp
     # check if there's an ongoing process
     if response.status_code == 409:
+        if _should_enrich_errors:
+            raise_enriched_deployment_error(
+                params=params,
+                status_code=409,
+                error_message=response.text if response.text else "Deployment conflict (HTTP 409)",
+                last_known_step="OneDeploy HTTP request",
+                kudu_status="409"
+            )
         raise ValidationError("Another deployment is in progress. Please wait until that process is complete before "
                               "starting a new deployment. You can track the ongoing deployment at {}"
                               .format(deployment_status_url))
 
-    # check if an error occured during deployment
+    # check if an error occurred during deployment
     if response.status_code:
         scm_url = _get_scm_url(params.cmd, params.resource_group_name, params.webapp_name, params.slot)
         latest_deploymentinfo_url = scm_url + "/api/deployments/latest"
+        if _should_enrich_errors and response.status_code >= 400:
+            logger.error("Deployment failed. Visit %s to get more information about your deployment.",
+                         latest_deploymentinfo_url)
+            raise_enriched_deployment_error(
+                params=params,
+                status_code=response.status_code,
+                error_message=response.text if response.text else None,
+                last_known_step="HTTP request sent to deployment API",
+                kudu_status=str(response.status_code)
+            )
         raise CLIError("An error occurred during deployment. Status Code: {}, {} Please visit {}"
                        " to get more information about your deployment"
                        .format(response.status_code, f"Details: {response.text}," if response.text else "",
                                latest_deploymentinfo_url))
+
+
+def _try_enrich_and_raise(params, **kwargs):
+    try:
+        raise_enriched_deployment_error(params=params, **kwargs)
+    except EnrichedDeploymentError:
+        raise
+    except Exception:  # pylint: disable=broad-except
+        logger.debug("Failed to enrich deployment error, re-raising original.")
 
 
 # OneDeploy
@@ -10612,11 +10677,19 @@ def _perform_onedeploy_internal(params):
 
     # Update artifact type, if required
     _update_artifact_type(params)
+    _should_enrich_errors = params.enriched_errors and params.is_linux_webapp and not params.is_functionapp
 
     # Now make the OneDeploy API call
     logger.warning("Initiating deployment")
-    response = _make_onedeploy_request(params)
-    return response
+    try:
+        response = _make_onedeploy_request(params)
+        return response
+    except (ValidationError, ResourceNotFoundError, EnrichedDeploymentError):
+        raise
+    except Exception as ex:  # pylint: disable=broad-except
+        if _should_enrich_errors:
+            _try_enrich_and_raise(params, error_message=str(ex), last_known_step="Deployment request")
+        raise
 
 
 def _wait_for_webapp(tunnel_server):
