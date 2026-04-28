@@ -676,5 +676,32 @@ class FakedResponse:  # pylint: disable=too-few-public-methods
         self.status_code = status_code
 
 
+class TestCreateAppServicePlanDefaults(unittest.TestCase):
+    """Tests for create_app_service_plan default SKU behavior"""
+
+    @mock.patch('azure.cli.command_modules.appservice.custom.web_client_factory')
+    @mock.patch('azure.cli.command_modules.appservice.custom._get_location_from_resource_group', return_value='eastus')
+    def test_default_sku_is_p0v3_when_not_specified(self, mock_location, mock_client_factory):
+        from azure.cli.command_modules.appservice.custom import create_app_service_plan
+        mock_cmd = mock.MagicMock()
+        mock_cmd.get_models.return_value = (mock.MagicMock(), mock.MagicMock(), mock.MagicMock())
+        mock_cmd.cli_ctx = mock.MagicMock()
+        mock_client = mock.MagicMock()
+        mock_client_factory.return_value = mock_client
+
+        # Call without sku parameter — should default to P0V3
+        try:
+            create_app_service_plan(mock_cmd, 'rg', 'plan', is_linux=True, hyper_v=False)
+        except Exception:
+            pass  # We don't care about downstream errors, just checking the SKU
+
+        # Verify SkuDescription was called with P0V3 tier/name
+        sku_description_cls = mock_cmd.get_models.return_value[1]
+        sku_description_cls.assert_called()
+        call_kwargs = sku_description_cls.call_args
+        # The sku name should be normalized P0V3
+        self.assertIn('P0V3', str(call_kwargs))
+
+
 if __name__ == '__main__':
     unittest.main()
